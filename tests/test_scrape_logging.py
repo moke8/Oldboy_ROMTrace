@@ -136,6 +136,8 @@ class ScrapeActionPrefixTests(unittest.TestCase):
             with (
                 patch('scrape.get_datasource', return_value=FakeSource()),
                 patch('scrape._http_get_bytes', return_value=b'jpg-data'),
+                patch('scrape._download_video',
+                      return_value=str(root / 'media/Prefix Game/video.mp4')),
             ):
                 batch_scrape(
                     game_dir=root,
@@ -163,6 +165,7 @@ class ScrapeActionPrefixTests(unittest.TestCase):
                 '[图片下载]',
                 '[元数据补全]',
                 '[视频]',
+                '[视频下载]',
                 '[Pegasus]',
                 '[gamelist]',
                 '[刮削完成]',

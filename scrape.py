@@ -55,6 +55,44 @@ def standard_logo_path(display_name, image_suffix):
     return f'media/{name}/logo{suffix}'
 
 
+def _download_video(source, output_stem, proxy=''):
+    """下载最接近 480p 的视频，并返回实际输出路径。"""
+    import yt_dlp
+
+    source = str(source).strip()
+    if not source.startswith(('http://', 'https://')):
+        source = f'https://www.youtube.com/watch?v={source}'
+
+    output_stem = Path(output_stem)
+    output_stem.parent.mkdir(parents=True, exist_ok=True)
+    options = {
+        'format': 'bv*+ba/b',
+        'format_sort': ['res:480'],
+        'format_sort_force': True,
+        'merge_output_format': 'mp4',
+        'outtmpl': f'{output_stem}.%(ext)s',
+        'noplaylist': True,
+        'quiet': True,
+        'no_warnings': True,
+    }
+    if proxy:
+        options['proxy'] = proxy
+
+    with yt_dlp.YoutubeDL(options) as downloader:
+        info = downloader.extract_info(source, download=True)
+
+    candidates = [
+        path for path in output_stem.parent.glob(f'{output_stem.name}.*')
+        if path.suffix not in ('.part', '.ytdl')
+    ]
+    if candidates:
+        return str(max(candidates, key=lambda path: path.stat().st_mtime))
+    for item in info.get('requested_downloads') or []:
+        if item.get('filepath'):
+            return item['filepath']
+    return None
+
+
 def anbernic_cover_path(display_name, image_suffix):
     name = _rom_media_name(display_name)
     suffix = _normalized_image_suffix(image_suffix)
@@ -724,6 +762,7 @@ def batch_scrape(
             img_ext = '.jpg'
             logo_data = None
             logo_ext = '.png'
+            video_source = None
             image_rel_path = None
 
             if online_mode and source:
@@ -802,14 +841,13 @@ def batch_scrape(
                                         f"[翻译] 翻译失败 {k}: {display_name}"
                                     )
                     if video:
-                        video_url = (online.pop('video_url', None)
-                                     or online.get('youtube'))
-                        if not video_url:
+                        video_source = (online.pop('video_url', None)
+                                        or online.pop('youtube', None))
+                        if not video_source:
                             log(f"[视频] 未找到视频: {display_name}")
                         else:
-                            online['video'] = video_url
                             log(
-                                f"[视频] 已获取视频: {video_url}"
+                                f"[视频] 已找到视频源: {video_source}"
                             )
                     else:
                         online.pop('youtube', None)
@@ -866,6 +904,27 @@ def batch_scrape(
                 logo_path.write_bytes(logo_data)
                 info['logo_rel_path'] = logo_rel_path
                 log(f"[图片下载] 已保存 logo: {display_name} -> {logo_rel_path}")
+
+            if video_source:
+                video_stem = (Path(game_dir) / 'media'
+                              / _rom_media_name(display_name) / 'video')
+                log(f"[视频下载] 开始下载最接近 480p 的视频: {display_name}")
+                try:
+                    downloaded_video = _download_video(
+                        video_source, video_stem, proxy=proxy)
+                except Exception as error:
+                    downloaded_video = None
+                    log(f"[视频下载] 下载异常: {display_name} | {error}")
+                if downloaded_video:
+                    video_rel_path = Path(downloaded_video).relative_to(
+                        Path(game_dir)).as_posix()
+                    info['video'] = video_rel_path
+                    log(
+                        f"[视频下载] 已保存: {display_name} -> "
+                        f"{video_rel_path}"
+                    )
+                else:
+                    log(f"[视频下载] 下载失败: {display_name}")
 
             return (info, image_rel_path)
         except Exception as e:

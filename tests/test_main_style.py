@@ -30,6 +30,14 @@ class MainStyleTests(unittest.TestCase):
         self.assertIn('image: url(assets/icons/chevron-down.svg)', STYLESHEET)
         window.close()
 
+    def test_window_uses_product_title_and_generated_icon(self):
+        window = MainWindow()
+
+        self.assertEqual('Oldboy ROMTrace', window.windowTitle())
+        self.assertFalse(window.windowIcon().isNull())
+        self.assertFalse(window.windowIcon().pixmap(64, 64).isNull())
+        window.close()
+
 
 if __name__ == '__main__':
     unittest.main()

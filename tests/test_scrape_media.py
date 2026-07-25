@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from scrape import (
+    _download_video,
     anbernic_cover_path,
     batch_scrape,
     build_game_entry,
@@ -335,8 +336,12 @@ class BatchScrapeMediaTests(unittest.TestCase):
                     'https://example.test/logo.png': b'logo-data',
                 }.get(url)
 
+            video_path = 'media/Game/video.mp4'
             with patch('scrape.get_datasource', return_value=Source()), \
-                    patch('scrape._http_get_bytes', side_effect=download):
+                    patch('scrape._http_get_bytes', side_effect=download), \
+                    patch('scrape._download_video',
+                          return_value=str(root / video_path)) \
+                    as video_download:
                 batch_scrape(
                     game_dir=root,
                     extract_fn=extract_fn,
@@ -353,6 +358,12 @@ class BatchScrapeMediaTests(unittest.TestCase):
                     log=lambda _message: None,
                 )
 
+            video_download.assert_called_once_with(
+                'https://example.test/video.mp4',
+                root / 'media' / 'Game' / 'video',
+                proxy='',
+            )
+
             self.assertEqual(
                 b'box-data',
                 (root / 'media' / 'Game' / 'boxfront.png').read_bytes(),
@@ -364,11 +375,45 @@ class BatchScrapeMediaTests(unittest.TestCase):
             pegasus = (root / 'metadata.pegasus.txt').read_text(encoding='utf-8')
             self.assertIn('assets.boxFront: media/Game/boxfront.png', pegasus)
             self.assertIn('assets.logo: media/Game/logo.png', pegasus)
-            self.assertIn('assets.video: https://example.test/video.mp4', pegasus)
+            self.assertIn('assets.video: media/Game/video.mp4', pegasus)
             game = ET.parse(root / 'gamelist.xml').find('./game')
             self.assertEqual('./media/Game/boxfront.png', game.findtext('image'))
             self.assertEqual('./media/Game/logo.png', game.findtext('marquee'))
-            self.assertEqual('https://example.test/video.mp4', game.findtext('video'))
+            self.assertEqual('./media/Game/video.mp4', game.findtext('video'))
+
+    def test_video_downloader_prefers_format_closest_to_480p(self):
+        captured = {}
+
+        class FakeYoutubeDL:
+            def __init__(self, options):
+                captured.update(options)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def extract_info(self, source, download):
+                captured['source'] = source
+                captured['download'] = download
+                return {'requested_downloads': [{'filepath': captured['path']}]}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_stem = Path(temp_dir) / 'media' / 'Game' / 'video'
+            captured['path'] = str(output_stem.with_suffix('.mp4'))
+            with patch.dict('sys.modules', {
+                    'yt_dlp': type('Module', (), {'YoutubeDL': FakeYoutubeDL})}):
+                result = _download_video('SN15PnaPYVc', output_stem)
+
+        self.assertEqual(['res:480'], captured['format_sort'])
+        self.assertTrue(captured['format_sort_force'])
+        self.assertEqual(
+            'https://www.youtube.com/watch?v=SN15PnaPYVc',
+            captured['source'],
+        )
+        self.assertTrue(captured['download'])
+        self.assertEqual('video.mp4', Path(result).name)
 
     def test_filename_title_skips_title_translation(self):
         with tempfile.TemporaryDirectory() as temp_dir:

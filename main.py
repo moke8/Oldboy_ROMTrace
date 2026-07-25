@@ -28,6 +28,7 @@ try:
     )
     from PySide6.QtGui import (
         QPixmap, QFont, QColor, QPainter, QLinearGradient, QPen, QPainterPath,
+        QIcon,
     )
     from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
     from PySide6.QtMultimediaWidgets import QVideoWidget
@@ -39,6 +40,50 @@ except ImportError:
 CARD_W = 180
 CARD_H = 260
 COVER_H = 180
+
+
+def create_app_icon(size=64):
+    """用 Qt 画布生成 ROM 卡带与追踪线路图标。"""
+    pixmap = QPixmap(size, size)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+
+    scale = size / 64.0
+    painter.scale(scale, scale)
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(QColor('#161b22'))
+    painter.drawRoundedRect(2, 2, 60, 60, 14, 14)
+
+    # ROM 卡带主体
+    painter.setBrush(QColor('#21262d'))
+    painter.setPen(QPen(QColor('#e60012'), 3))
+    cartridge = QPainterPath()
+    cartridge.moveTo(18, 12)
+    cartridge.lineTo(42, 12)
+    cartridge.lineTo(48, 18)
+    cartridge.lineTo(48, 51)
+    cartridge.lineTo(16, 51)
+    cartridge.lineTo(16, 14)
+    cartridge.quadTo(16, 12, 18, 12)
+    painter.drawPath(cartridge)
+
+    # 卡带标签和 ROM 追踪线路
+    painter.setPen(Qt.NoPen)
+    painter.setBrush(QColor('#e6edf3'))
+    painter.drawRoundedRect(22, 19, 20, 10, 3, 3)
+    painter.setPen(QPen(QColor('#58a6ff'), 3,
+                        Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+    trace = QPainterPath()
+    trace.moveTo(22, 39)
+    trace.lineTo(28, 39)
+    trace.lineTo(32, 34)
+    trace.lineTo(37, 44)
+    trace.lineTo(42, 37)
+    painter.drawPath(trace)
+
+    painter.end()
+    return QIcon(pixmap)
 
 STYLESHEET = """
 QMainWindow { background-color: #0d1117; }
@@ -904,7 +949,8 @@ class PublisherNavBar(QWidget):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Game Cover Extractor")
+        self.setWindowTitle("Oldboy ROMTrace")
+        self.setWindowIcon(create_app_icon())
         self.setMinimumSize(900, 650)
         self.resize(1000, 700)
 
@@ -1061,6 +1107,8 @@ class MainWindow(QMainWindow):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
+    app.setApplicationName('Oldboy ROMTrace')
+    app.setWindowIcon(create_app_icon())
     app.setStyleSheet(STYLESHEET)
     window = MainWindow()
     window.show()

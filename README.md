@@ -54,7 +54,7 @@
 - **在线元数据补全** — 支持 TheGamesDB、IGDB、ScreenScraper、Wikipedia 四种数据源
 - **手动搜索** — 右键游戏卡片可手动输入关键词搜索，支持一键从 ROM 提取英文名
 - **多语言支持** — 16 种语言可选（含简繁中文智能识别），支持 Google Translate 翻译
-- **视频支持** — 识别本地视频和媒体直链并在详情页直接播放；不兼容的页面链接会显示播放错误
+- **视频支持** — 刮削时通过 yt-dlp 下载最接近 480p 的视频到 `media/<ROM文件名>/video.<格式>`，详情页直接播放本地文件
 - **多线程处理** — 可配置线程数（1~16），并行处理加速批量刮削
 - **元数据输出** — 生成 `metadata.pegasus.txt`（Pegasus Frontend）和 `gamelist.xml`（Anbernic / EmulationStation）
 - **代理支持** — HTTP/SOCKS 代理
