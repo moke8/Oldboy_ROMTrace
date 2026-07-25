@@ -33,7 +33,7 @@
 | 平台 | 文件格式 | 解析方式 |
 |------|---------|---------|
 | Game Boy Advance | `.gba` `.agb` `.mb` | ROM Header Game Code → No-Intro 数据库查表获取完整英文名 |
-| Nintendo DS | `.nds` | ROM 头部多语言标题、Game Code、图标解码 |
+| Nintendo DS | `.nds` | ROM Header Game Code → No-Intro 英文名，多语言横幅标题与图标解码 |
 | Nintendo 3DS | `.3ds` `.cia` | SMDH 标题解析 |
 | PlayStation 1 | `.chd` `.pbp` `.bin/.cue` | SYSTEM.CNF 序列号提取 |
 | PlayStation Portable | `.iso` `.cso` `.pbp` | PARAM.SFO 解析（支持 CSO 解压） |
@@ -97,6 +97,9 @@ platform_ngc.py          # GameCube 平台
 platform_wii.py          # Wii 平台
 platform_dc.py           # Dreamcast 平台
 platform_switch.py       # Switch 平台（XCI/NCA 解密）
+
+nds_game_db.py           # NDS Game Code → 游戏名映射表（自动生成）
+build_nds_db.py          # 从 No-Intro DAT 生成 NDS 映射表
 
 datasource_thegamesdb.py # TheGamesDB 数据源
 datasource_igdb.py       # IGDB (Twitch) 数据源

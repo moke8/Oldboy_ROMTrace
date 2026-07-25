@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Nintendo DS (NDS) - 平台模块"""
 
+import re
 import struct
 from pathlib import Path
 
+from nds_game_db import NDS_GAME_DB
 from PySide6.QtCore import Qt, QBuffer, QIODevice
 from PySide6.QtGui import QImage, QColor
 
@@ -28,6 +30,11 @@ NDS_TITLE_OFFSETS = {
 
 
 # ===== NDS ROM 解析 =====
+
+def _clean_title(raw_name):
+    """移除 No-Intro 名称中的区域、语言及版本括号后缀。"""
+    return re.sub(r'\s*\(.*?\)', '', raw_name).strip()
+
 
 def decode_nds_icon(bitmap_data, palette_data):
     palette = []
@@ -134,7 +141,9 @@ def extract_nds_info(nds_path, lang_code='en', log=print):
 
         titles = parse_nds_titles(icon_title_data, lang_code)
         title = titles.get('selected') or game_title or Path(nds_path).stem
-        title_en = titles.get('en') or title
+        db_name = NDS_GAME_DB.get(game_code)
+        title_en = (_clean_title(db_name) if db_name
+                    else (titles.get('en') or title))
 
         return {
             'title': title,
