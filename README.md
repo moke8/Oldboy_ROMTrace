@@ -47,13 +47,14 @@
 ## 功能一览
 
 - **封面提取** — Switch 从 XCI 内部提取封面；其他平台从在线数据库下载 boxart
-- **统一图片目录** — 新封面固定保存到 `media/<ROM文件名>/boxfront.<原格式>`；默认在刮削前迁移已有索引封面并清理空目录
+- **分类媒体目录** — 正面封面和 Logo 分别保存为 `media/<ROM文件名>/boxfront.<原格式>` 与 `logo.<原格式>`，视频保留独立索引；默认展示优先使用 boxFront，缺失时回退到 Logo
+- **游戏详情媒体** — 详情弹窗分别展示封面、Logo 与视频，视频使用 Qt Multimedia 内嵌播放
 - **Anbernic 封面兼容** — 可额外生成 `Imgs/<ROM文件名>.<原格式>`，副本不写入 Pegasus 或 `gamelist.xml`，关闭兼容选项后也不会自动删除
 - **完整刮削日志** — 启动时输出脱敏后的全部配置，执行中按文件扫描、游戏解析、游戏搜索、图片下载、图片整理、索引写入等业务前缀记录过程与统计
 - **在线元数据补全** — 支持 TheGamesDB、IGDB、ScreenScraper、Wikipedia 四种数据源
 - **手动搜索** — 右键游戏卡片可手动输入关键词搜索，支持一键从 ROM 提取英文名
 - **多语言支持** — 16 种语言可选（含简繁中文智能识别），支持 Google Translate 翻译
-- **视频支持** — 获取 YouTube 视频链接写入元数据
+- **视频支持** — 识别本地视频和媒体直链并在详情页直接播放；不兼容的页面链接会显示播放错误
 - **多线程处理** — 可配置线程数（1~16），并行处理加速批量刮削
 - **元数据输出** — 生成 `metadata.pegasus.txt`（Pegasus Frontend）和 `gamelist.xml`（Anbernic / EmulationStation）
 - **代理支持** — HTTP/SOCKS 代理

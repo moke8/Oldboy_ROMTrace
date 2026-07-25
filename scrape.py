@@ -49,6 +49,12 @@ def standard_cover_path(display_name, image_suffix):
     return f'media/{name}/boxfront{suffix}'
 
 
+def standard_logo_path(display_name, image_suffix):
+    name = sanitize_filename(Path(display_name).stem)
+    suffix = _normalized_image_suffix(image_suffix)
+    return f'media/{name}/logo{suffix}'
+
+
 def anbernic_cover_path(display_name, image_suffix):
     name = _rom_media_name(display_name)
     suffix = _normalized_image_suffix(image_suffix)
@@ -464,8 +470,11 @@ def build_game_entry(info, image_rel_path):
         lines.append(f"description: {desc}")
     if image_rel_path:
         lines.append(f"assets.boxFront: {image_rel_path}")
-    if info.get('youtube'):
-        lines.append(f"assets.video: {info['youtube']}")
+    if info.get('logo_rel_path'):
+        lines.append(f"assets.logo: {info['logo_rel_path']}")
+    video_path = info.get('video') or info.get('youtube')
+    if video_path:
+        lines.append(f"assets.video: {video_path}")
     return '\n'.join(lines)
 
 
@@ -550,6 +559,8 @@ def write_gamelist_xml(gamelist_path, results):
             _set('id', info['game_id'])
         if image_rel_path:
             _set('image', f"./{image_rel_path}")
+        if info.get('logo_rel_path'):
+            _set('marquee', f"./{info['logo_rel_path']}")
         if info.get('description'):
             _set('desc', info['description'])
         if info.get('publisher'):
@@ -568,8 +579,12 @@ def write_gamelist_xml(gamelist_path, results):
                 _set('rating', f"{r:.2f}")
             except (ValueError, AttributeError):
                 pass
-        if info.get('youtube'):
-            _set('video', info['youtube'])
+        video_path = info.get('video') or info.get('youtube')
+        if video_path:
+            if str(video_path).startswith(('http://', 'https://')):
+                _set('video', video_path)
+            else:
+                _set('video', f"./{str(video_path).lstrip('./')}")
 
     tree = ET.ElementTree(root)
     ET.indent(tree, space='  ')
@@ -707,6 +722,8 @@ def batch_scrape(
             icon_data = info.pop('icon_data', None)
             img_data = None
             img_ext = '.jpg'
+            logo_data = None
+            logo_ext = '.png'
             image_rel_path = None
 
             if online_mode and source:
@@ -738,20 +755,34 @@ def batch_scrape(
                         f"[游戏搜索] 匹配成功: {matched_title} | "
                         f"游戏ID: {matched_id or '未提供'}"
                     )
-                    boxart_url = online.pop('boxart_url', None)
-                    if boxart_url:
-                        log(f"[图片下载] 开始下载: {boxart_url}")
-                        boxart_data = _http_get_bytes(boxart_url)
+                    boxfront_url = (online.pop('boxfront_url', None)
+                                    or online.pop('boxart_url', None))
+                    if boxfront_url:
+                        log(f"[图片下载] 开始下载 boxFront: {boxfront_url}")
+                        boxart_data = _http_get_bytes(boxfront_url)
                         if boxart_data:
-                            img_ext = Path(boxart_url).suffix or '.jpg'
+                            img_ext = Path(boxfront_url).suffix or '.jpg'
                             img_data = boxart_data
                             log(
-                                f"[图片下载] 下载成功: {len(boxart_data)} 字节"
+                                f"[图片下载] boxFront 下载成功: "
+                                f"{len(boxart_data)} 字节"
                             )
                         else:
-                            log(f"[图片下载] 下载失败: {boxart_url}")
+                            log(f"[图片下载] boxFront 下载失败: {boxfront_url}")
                     else:
-                        log("[图片下载] 匹配结果未提供封面地址")
+                        log("[图片下载] 匹配结果未提供 boxFront 地址")
+                    logo_url = online.pop('logo_url', None)
+                    if logo_url:
+                        log(f"[图片下载] 开始下载 logo: {logo_url}")
+                        logo_data = _http_get_bytes(logo_url)
+                        if logo_data:
+                            logo_ext = Path(logo_url).suffix or '.png'
+                            log(
+                                f"[图片下载] logo 下载成功: "
+                                f"{len(logo_data)} 字节"
+                            )
+                        else:
+                            log(f"[图片下载] logo 下载失败: {logo_url}")
                     if translate and google_lang:
                         for k in ('description', 'genres'):
                             if online.get(k):
@@ -771,14 +802,18 @@ def batch_scrape(
                                         f"[翻译] 翻译失败 {k}: {display_name}"
                                     )
                     if video:
-                        if not online.get('youtube'):
+                        video_url = (online.pop('video_url', None)
+                                     or online.get('youtube'))
+                        if not video_url:
                             log(f"[视频] 未找到视频: {display_name}")
                         else:
+                            online['video'] = video_url
                             log(
-                                f"[视频] 已获取视频: {online['youtube']}"
+                                f"[视频] 已获取视频: {video_url}"
                             )
                     else:
                         online.pop('youtube', None)
+                        online.pop('video_url', None)
                     info.update(online)
                     log(f"[元数据补全] 已合并在线元数据: {display_name}")
                 else:
@@ -823,6 +858,14 @@ def batch_scrape(
                 log(f"[图片下载] 已保存: {display_name} -> {image_rel_path}")
             else:
                 log(f"[图片下载] 未获得封面: {display_name}")
+
+            if logo_data:
+                logo_rel_path = standard_logo_path(display_name, logo_ext)
+                logo_path = Path(game_dir) / logo_rel_path
+                logo_path.parent.mkdir(parents=True, exist_ok=True)
+                logo_path.write_bytes(logo_data)
+                info['logo_rel_path'] = logo_rel_path
+                log(f"[图片下载] 已保存 logo: {display_name} -> {logo_rel_path}")
 
             return (info, image_rel_path)
         except Exception as e:

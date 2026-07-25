@@ -52,6 +52,8 @@ def collect_game_files(directory, extensions):
 # ===== 游戏展柜解析 =====
 
 def _resolve_asset(base_dir, rel_path):
+    if str(rel_path).startswith(('http://', 'https://')):
+        return str(rel_path)
     p = base_dir / rel_path
     if p.exists():
         return str(p)
@@ -76,24 +78,31 @@ def _media_candidates(game):
     return candidates
 
 
-def _find_media_cover(base_dir, game):
+def _find_media_image(base_dir, game, media_name):
     candidates = _media_candidates(game)
     for safe in candidates:
         media_dir = base_dir / 'media' / safe
         if media_dir.is_dir():
-            for name in ('boxfront', 'logo'):
-                for ext in ('.jpg', '.png', '.webp', '.jpeg'):
-                    p = media_dir / f'{name}{ext}'
-                    if p.exists():
-                        return str(p)
-    images_dir = base_dir / 'images'
-    if images_dir.is_dir():
+            for ext in ('.jpg', '.png', '.webp', '.jpeg'):
+                p = media_dir / f'{media_name}{ext}'
+                if p.exists():
+                    return str(p)
+    if media_name == 'boxfront':
+        images_dir = base_dir / 'images'
+        if not images_dir.is_dir():
+            return None
         for safe in candidates:
             for ext in ('.jpg', '.png', '.webp', '.jpeg'):
                 p = images_dir / f'{safe}{ext}'
                 if p.exists():
                     return str(p)
     return None
+
+
+def _find_media_cover(base_dir, game):
+    """按 boxFront → logo 顺序查找默认展示图片。"""
+    return (_find_media_image(base_dir, game, 'boxfront')
+            or _find_media_image(base_dir, game, 'logo'))
 
 
 def _find_media_video(base_dir, game):
@@ -135,9 +144,11 @@ def parse_pegasus_for_showcase(meta_path, base_dir):
             if key in mapping:
                 game[mapping[key]] = value
             elif key in ('assets.boxFront', 'assets.box_front'):
-                game['cover'] = _resolve_asset(base_dir, value)
+                game['boxfront'] = _resolve_asset(base_dir, value)
+            elif key in ('assets.logo', 'assets.Logo'):
+                game['logo'] = _resolve_asset(base_dir, value)
             elif key in ('assets.video', 'assets.Video'):
-                game['video'] = str(base_dir / value)
+                game['video'] = _resolve_asset(base_dir, value)
         if game.get('title'):
             game['source'] = 'pegasus'
             games.append(game)
@@ -175,13 +186,19 @@ def parse_gamelist_for_showcase(gamelist_path, base_dir):
             img = image_el.text
             if img.startswith('./'):
                 img = img[2:]
-            game['cover'] = _resolve_asset(base_dir, img)
+            game['boxfront'] = _resolve_asset(base_dir, img)
+        marquee_el = game_el.find('marquee')
+        if marquee_el is not None and marquee_el.text:
+            logo = marquee_el.text
+            if logo.startswith('./'):
+                logo = logo[2:]
+            game['logo'] = _resolve_asset(base_dir, logo)
         video_el = game_el.find('video')
         if video_el is not None and video_el.text:
             vid = video_el.text
             if vid.startswith('./'):
                 vid = vid[2:]
-            game['video'] = str(base_dir / vid)
+            game['video'] = _resolve_asset(base_dir, vid)
         if game.get('title'):
             games.append(game)
     return games
@@ -231,11 +248,19 @@ def load_showcase_games(directory, extensions=None):
     for g in games:
         if not g.get('title'):
             continue
-        cover = g.get('cover', '')
-        if not cover or not Path(cover).exists():
-            found = _find_media_cover(base_dir, g)
-            if found:
-                g['cover'] = found
+        for key, media_name in (('boxfront', 'boxfront'), ('logo', 'logo')):
+            value = g.get(key, '')
+            if (not value
+                    or (not value.startswith('http') and not Path(value).exists())):
+                found = _find_media_image(base_dir, g, media_name)
+                if found:
+                    g[key] = found
+        boxfront = g.get('boxfront', '')
+        logo = g.get('logo', '')
+        if boxfront and (boxfront.startswith('http') or Path(boxfront).exists()):
+            g['cover'] = boxfront
+        elif logo and (logo.startswith('http') or Path(logo).exists()):
+            g['cover'] = logo
         video = g.get('video', '')
         if not video or (not video.startswith('http') and not Path(video).exists()):
             found = _find_media_video(base_dir, g)

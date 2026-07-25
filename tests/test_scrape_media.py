@@ -8,8 +8,11 @@ from unittest.mock import patch
 from scrape import (
     anbernic_cover_path,
     batch_scrape,
+    build_game_entry,
     organize_existing_media,
     standard_cover_path,
+    standard_logo_path,
+    write_gamelist_xml,
 )
 
 
@@ -29,6 +32,48 @@ class CoverPathTests(unittest.TestCase):
             standard_cover_path('Archive Game.zip', '.webp'),
             'media/Archive Game/boxfront.webp',
         )
+
+    def test_logo_path_uses_distinct_media_name(self):
+        self.assertEqual(
+            standard_logo_path('Game: Name.gba', '.png'),
+            'media/Game_ Name/logo.png',
+        )
+
+
+class MediaIndexTests(unittest.TestCase):
+    def test_writes_distinct_boxfront_logo_and_video_fields(self):
+        info = {
+            'title': 'Game',
+            'filename': 'Game.nds',
+            'logo_rel_path': 'media/Game/logo.png',
+            'video': 'media/Game/video.mp4',
+        }
+
+        entry = build_game_entry(info, 'media/Game/boxfront.png')
+
+        self.assertIn('assets.boxFront: media/Game/boxfront.png', entry)
+        self.assertIn('assets.logo: media/Game/logo.png', entry)
+        self.assertIn('assets.video: media/Game/video.mp4', entry)
+
+    def test_gamelist_uses_image_marquee_and_video_tags(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / 'gamelist.xml'
+            info = {
+                'title': 'Game',
+                'filename': 'Game.nds',
+                'logo_rel_path': 'media/Game/logo.png',
+                'video': 'media/Game/video.mp4',
+            }
+
+            write_gamelist_xml(
+                path,
+                [(info, 'media/Game/boxfront.png')],
+            )
+
+            game = ET.parse(path).find('./game')
+            self.assertEqual('./media/Game/boxfront.png', game.findtext('image'))
+            self.assertEqual('./media/Game/logo.png', game.findtext('marquee'))
+            self.assertEqual('./media/Game/video.mp4', game.findtext('video'))
 
 
 class ExistingMediaTests(unittest.TestCase):
@@ -264,6 +309,67 @@ class ExistingMediaTests(unittest.TestCase):
 
 
 class BatchScrapeMediaTests(unittest.TestCase):
+    def test_online_scrape_saves_and_indexes_distinct_media_types(self):
+        class Source:
+            display_name = '测试源'
+
+            def fetch_metadata(self, *_args, **_kwargs):
+                return {
+                    'boxfront_url': 'https://example.test/box.png',
+                    'logo_url': 'https://example.test/logo.png',
+                    'video_url': 'https://example.test/video.mp4',
+                }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            rom = root / 'Game.nds'
+            rom.write_bytes(b'rom')
+
+            def extract_fn(*_args, **_kwargs):
+                return {'title': 'Game', 'title_en': 'Game',
+                        'filename': rom.name, 'game_code': 'TEST'}
+
+            def download(url):
+                return {
+                    'https://example.test/box.png': b'box-data',
+                    'https://example.test/logo.png': b'logo-data',
+                }.get(url)
+
+            with patch('scrape.get_datasource', return_value=Source()), \
+                    patch('scrape._http_get_bytes', side_effect=download):
+                batch_scrape(
+                    game_dir=root,
+                    extract_fn=extract_fn,
+                    file_extensions=('nds',),
+                    platform_id=8,
+                    platform_name='Nintendo DS',
+                    collection_defaults={},
+                    generate_meta=True,
+                    generate_gamelist=True,
+                    online_mode=True,
+                    video=True,
+                    normalize_media_paths=False,
+                    thread_count=1,
+                    log=lambda _message: None,
+                )
+
+            self.assertEqual(
+                b'box-data',
+                (root / 'media' / 'Game' / 'boxfront.png').read_bytes(),
+            )
+            self.assertEqual(
+                b'logo-data',
+                (root / 'media' / 'Game' / 'logo.png').read_bytes(),
+            )
+            pegasus = (root / 'metadata.pegasus.txt').read_text(encoding='utf-8')
+            self.assertIn('assets.boxFront: media/Game/boxfront.png', pegasus)
+            self.assertIn('assets.logo: media/Game/logo.png', pegasus)
+            self.assertIn('assets.video: https://example.test/video.mp4', pegasus)
+            game = ET.parse(root / 'gamelist.xml').find('./game')
+            self.assertEqual('./media/Game/boxfront.png', game.findtext('image'))
+            self.assertEqual('./media/Game/logo.png', game.findtext('marquee'))
+            self.assertEqual('https://example.test/video.mp4', game.findtext('video'))
+
     def test_filename_title_skips_title_translation(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

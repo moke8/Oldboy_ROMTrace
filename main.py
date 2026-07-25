@@ -24,11 +24,13 @@ try:
     )
     from PySide6.QtCore import (
         Qt, QSize, Signal, QThread, QPropertyAnimation, QEasingCurve,
-        QPoint, QRect, Property,
+        QPoint, QRect, Property, QUrl,
     )
     from PySide6.QtGui import (
         QPixmap, QFont, QColor, QPainter, QLinearGradient, QPen, QPainterPath,
     )
+    from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
+    from PySide6.QtMultimediaWidgets import QVideoWidget
 except ImportError:
     print("请先安装 PySide6: pip install PySide6")
     exit(1)
@@ -92,6 +94,26 @@ QComboBox::drop-down { border: none; width: 24px; }
 QComboBox QAbstractItemView {
     background: #161b22; border: 1px solid #30363d;
     color: #e6edf3; selection-background-color: #264f78;
+}
+
+QSpinBox {
+    background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+    padding: 6px 18px 6px 8px; color: #e6edf3;
+    selection-background-color: #264f78;
+}
+QSpinBox:focus { border-color: #58a6ff; }
+QSpinBox::up-button, QSpinBox::down-button {
+    background: #21262d; border: none; border-left: 1px solid #30363d;
+    width: 16px;
+}
+QSpinBox::up-button { border-top-right-radius: 5px; }
+QSpinBox::down-button { border-bottom-right-radius: 5px; }
+QSpinBox::up-button:hover, QSpinBox::down-button:hover { background: #30363d; }
+QSpinBox::up-arrow {
+    image: url(assets/icons/chevron-up.svg); width: 10px; height: 10px;
+}
+QSpinBox::down-arrow {
+    image: url(assets/icons/chevron-down.svg); width: 10px; height: 10px;
 }
 
 QScrollArea { border: none; background: transparent; }
@@ -535,11 +557,13 @@ class GameDetailDialog(QDialog):
         super().__init__(parent)
         self.game = game_data
         self.setWindowTitle(game_data.get('title', '游戏详情'))
-        self.setMinimumSize(620, 420)
+        self.setMinimumSize(760, 500)
+        self._media_player = None
+        self._video_tab_index = -1
         self.setStyleSheet("""
             QLabel#titleLabel { font-size: 20px; font-weight: bold; color: #e6edf3; }
             QLabel#fieldName  { color: #8b949e; font-size: 12px; }
-            QLabel#fieldValue { color: #c9d1d9; font-size: 13px; }
+            QLabel#fieldValue, QLabel#descriptionLabel { color: #c9d1d9; font-size: 13px; }
         """)
         self._build_ui()
 
@@ -548,21 +572,8 @@ class GameDetailDialog(QDialog):
         layout.setSpacing(24)
         layout.setContentsMargins(24, 24, 24, 24)
 
-        cover_label = QLabel()
-        cover_label.setFixedSize(240, 240)
-        cover_label.setAlignment(Qt.AlignCenter)
-        cover_label.setStyleSheet('background: #0d1117; border-radius: 8px;')
-        cover = self.game.get('cover', '')
-        if cover and Path(cover).exists():
-            px = QPixmap(cover)
-            if not px.isNull():
-                cover_label.setPixmap(px.scaled(
-                    236, 236, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-        else:
-            cover_label.setText("\U0001f3ae")
-            cover_label.setStyleSheet(
-                'background: #0d1117; border-radius: 8px; font-size: 48px; color: #484f58;')
-        layout.addWidget(cover_label, 0, Qt.AlignTop)
+        media_tabs = self._build_media_tabs()
+        layout.addWidget(media_tabs, 0, Qt.AlignTop)
 
         right = QVBoxLayout()
         right.setSpacing(10)
@@ -610,17 +621,136 @@ class GameDetailDialog(QDialog):
             sep.setStyleSheet('background: #30363d; max-height: 1px;')
             right.addWidget(sep)
             dl = QLabel(desc)
-            dl.setObjectName('fieldValue')
+            dl.setObjectName('descriptionLabel')
             dl.setWordWrap(True)
+            dl.setStyleSheet('background: transparent;')
             scroll = QScrollArea()
+            scroll.setObjectName('descriptionScroll')
             scroll.setWidget(dl)
             scroll.setWidgetResizable(True)
             scroll.setMaximumHeight(200)
-            scroll.setStyleSheet('QScrollArea { border: none; }')
+            scroll.setStyleSheet(
+                'QScrollArea { border: none; background: transparent; }'
+                'QScrollArea > QWidget > QWidget { background: transparent; }'
+            )
+            scroll.viewport().setStyleSheet('background: transparent;')
             right.addWidget(scroll)
 
         right.addStretch()
         layout.addLayout(right, 1)
+
+    def _build_media_tabs(self):
+        tabs = QTabWidget()
+        tabs.setObjectName('mediaTabs')
+        tabs.setFixedSize(320, 380)
+
+        boxfront = self.game.get('boxfront') or self.game.get('cover', '')
+        logo = self.game.get('logo', '')
+        if boxfront and Path(boxfront).exists():
+            tabs.addTab(self._image_page(boxfront), '封面')
+        if logo and Path(logo).exists() and logo != boxfront:
+            tabs.addTab(self._image_page(logo), 'Logo')
+
+        video = self.game.get('video', '')
+        if video:
+            self._video_tab_index = tabs.addTab(
+                self._video_page(video), '视频')
+
+        if tabs.count() == 0:
+            placeholder = QLabel("\U0001f3ae")
+            placeholder.setAlignment(Qt.AlignCenter)
+            placeholder.setStyleSheet(
+                'background: #0d1117; font-size: 48px; color: #484f58;')
+            tabs.addTab(placeholder, '媒体')
+
+        tabs.currentChanged.connect(self._media_tab_changed)
+        if tabs.currentIndex() == self._video_tab_index:
+            self._media_tab_changed(tabs.currentIndex())
+        return tabs
+
+    def _image_page(self, image_path):
+        label = QLabel()
+        label.setAlignment(Qt.AlignCenter)
+        label.setStyleSheet('background: #0d1117; border-radius: 8px;')
+        pixmap = QPixmap(image_path)
+        if not pixmap.isNull():
+            label.setPixmap(pixmap.scaled(
+                304, 330, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        return label
+
+    def _video_page(self, video_source):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        video_widget = QVideoWidget()
+        video_widget.setStyleSheet('background: #000;')
+        layout.addWidget(video_widget, 1)
+
+        status = QLabel('切换到“视频”标签后开始播放')
+        status.setObjectName('videoStatus')
+        status.setAlignment(Qt.AlignCenter)
+        status.setWordWrap(True)
+        layout.addWidget(status)
+
+        controls = QHBoxLayout()
+        play_button = QPushButton('播放')
+        pause_button = QPushButton('暂停')
+        controls.addWidget(play_button)
+        controls.addWidget(pause_button)
+        layout.addLayout(controls)
+
+        self._video_source = video_source
+        self._video_widget = video_widget
+        self._video_status = status
+        play_button.clicked.connect(self._play_video)
+        pause_button.clicked.connect(self._pause_video)
+        return page
+
+    def _ensure_media_player(self):
+        if self._media_player:
+            return
+        self._media_player = QMediaPlayer(self)
+        self._audio_output = QAudioOutput(self)
+        self._media_player.setAudioOutput(self._audio_output)
+        self._media_player.setVideoOutput(self._video_widget)
+        if str(self._video_source).startswith(('http://', 'https://')):
+            source_url = QUrl(str(self._video_source))
+        else:
+            source_url = QUrl.fromLocalFile(
+                str(Path(self._video_source).resolve()))
+        self._media_player.setSource(source_url)
+        self._media_player.errorOccurred.connect(
+            lambda *_args: self._video_status.setText(
+                f'视频无法播放：{self._media_player.errorString()}'))
+        self._media_player.playbackStateChanged.connect(
+            self._video_state_changed)
+
+    def _play_video(self):
+        self._ensure_media_player()
+        self._video_status.setText('正在加载视频…')
+        self._media_player.play()
+
+    def _pause_video(self):
+        if self._media_player:
+            self._media_player.pause()
+
+    def _video_state_changed(self, state):
+        if state == QMediaPlayer.PlaybackState.PlayingState:
+            self._video_status.setText('正在播放')
+        elif state == QMediaPlayer.PlaybackState.PausedState:
+            self._video_status.setText('已暂停')
+
+    def _media_tab_changed(self, index):
+        if index == self._video_tab_index:
+            self._play_video()
+        elif self._media_player:
+            self._media_player.pause()
+
+    def closeEvent(self, event):
+        if self._media_player:
+            self._media_player.stop()
+        super().closeEvent(event)
 
 
 class _DropDown(QWidget):
@@ -804,7 +934,7 @@ class MainWindow(QMainWindow):
         self.thread_spin = QSpinBox()
         self.thread_spin.setRange(1, 16)
         self.thread_spin.setValue(4)
-        self.thread_spin.setFixedWidth(50)
+        self.thread_spin.setFixedWidth(64)
         gl.addWidget(self.thread_spin)
 
         gl.addSpacing(8)

@@ -169,14 +169,18 @@ def _parse_game_data(jeu, include_boxart=False):
     if include_boxart:
         box_url = _pick_media_url(medias, ['box-2D', 'box-3D'])
         if box_url:
-            result['boxart_url'] = box_url
+            result['boxfront_url'] = box_url
+        logo_url = _pick_media_url(
+            medias, ['wheel-hd', 'wheel', 'wheel-carbon'])
+        if logo_url:
+            result['logo_url'] = logo_url
 
     for mt in ['video-normalized', 'video']:
         for m in medias:
             if m.get('type') == mt and m.get('url'):
-                result['youtube'] = m['url']
+                result['video_url'] = m['url']
                 break
-        if 'youtube' in result:
+        if 'video_url' in result:
             break
 
     return result if result else None

@@ -29,16 +29,15 @@ def fetch_publishers_map(api_key):
     return {int(k): v.get("name", "") for k, v in pubs.items()}
 
 
-def fetch_game_boxart(api_key, game_id, log=print):
+def fetch_game_images(api_key, game_id, log=print):
     params = {
         "apikey": api_key,
         "games_id": game_id,
-        "filter[type]": "boxart",
     }
     data = _tgdb_request("Games/Images", params)
     if not data or "data" not in data:
         log(f"[图片下载] TheGamesDB 图片接口无有效数据: game_id={game_id}")
-        return None
+        return {}
     base_url_map = data["data"].get("base_url", {})
     base_url = (base_url_map.get("original") or base_url_map.get("large")
                 or base_url_map.get("medium") or base_url_map.get("thumb") or "")
@@ -47,13 +46,25 @@ def fetch_game_boxart(api_key, game_id, log=print):
     if not images:
         log(f"[图片下载] TheGamesDB 未返回游戏图片: game_id={game_id}, "
             f"可用keys={list(images_dict.keys())[:5]}")
+    result = {}
     for img in images:
-        if img.get("type") == "boxart" and img.get("side") == "front":
-            return base_url + img["filename"] if base_url else None
-    if images:
+        if not base_url or not img.get('filename'):
+            continue
+        if (img.get("type") == "boxart" and img.get("side") == "front"
+                and 'boxfront_url' not in result):
+            result['boxfront_url'] = base_url + img['filename']
+        elif (img.get('type') in ('clearlogo', 'logo')
+              and 'logo_url' not in result):
+            result['logo_url'] = base_url + img['filename']
+    if images and 'boxfront_url' not in result:
         log(f"[图片下载] TheGamesDB 返回 {len(images)} 张图片但无正面封面, "
             f"types={[(i.get('type'),i.get('side')) for i in images[:5]]}")
-    return None
+    return result
+
+
+def fetch_game_boxart(api_key, game_id, log=print):
+    """兼容旧调用方，只返回正面封面地址。"""
+    return fetch_game_images(api_key, game_id, log).get('boxfront_url')
 
 
 def fetch_game_metadata(title, api_key, genres_map, publishers_map, platform_id,
@@ -100,9 +111,7 @@ def fetch_game_metadata(title, api_key, genres_map, publishers_map, platform_id,
     if game.get("youtube"):
         result["youtube"] = game["youtube"]
     if include_boxart and game_id:
-        boxart_url = fetch_game_boxart(api_key, game_id, log=log)
-        if boxart_url:
-            result["boxart_url"] = boxart_url
+        result.update(fetch_game_images(api_key, game_id, log=log))
     return result if result else None
 
 
