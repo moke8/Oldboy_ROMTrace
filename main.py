@@ -3,6 +3,7 @@
 
 import sys
 import json
+import copy
 from pathlib import Path
 
 from config import (
@@ -446,6 +447,11 @@ class ScrapeSettingsDialog(QDialog):
         """)
         self._settings = settings.copy()
         self._api_keys = dict(settings.get('api_keys', {}))
+        self._translate_configs = copy.deepcopy(
+            settings.get('translate_configs', {'google': {}, 'ai': {}}))
+        self._translate_configs.setdefault('google', {})
+        self._translate_configs.setdefault('ai', {})
+        self._current_translate_provider = None
         self._build_ui()
         self._load_from_settings()
 
@@ -474,13 +480,51 @@ class ScrapeSettingsDialog(QDialog):
         self.video_check = QCheckBox("视频")
         r2.addWidget(self.video_check)
         r2.addSpacing(16)
-        self.translate_check = QCheckBox("翻译")
-        r2.addWidget(self.translate_check)
+        r2.addWidget(QLabel("翻译"))
+        self.translate_provider_combo = QComboBox()
+        self.translate_provider_combo.addItem("关闭", "off")
+        self.translate_provider_combo.addItem("Google 翻译", "google")
+        self.translate_provider_combo.addItem("AI 翻译", "ai")
+        r2.addWidget(self.translate_provider_combo)
         r2.addSpacing(16)
         self.filename_as_title_check = QCheckBox("优先使用文件名作为游戏名称")
         r2.addWidget(self.filename_as_title_check)
         r2.addStretch()
         layout.addLayout(r2)
+
+        self.ai_config_widget = QFrame()
+        ai_layout = QVBoxLayout(self.ai_config_widget)
+        ai_layout.setContentsMargins(0, 0, 0, 0)
+        ai_layout.setSpacing(8)
+
+        ai_url_row = QHBoxLayout()
+        ai_url_label = QLabel("中转站")
+        ai_url_label.setFixedWidth(55)
+        ai_url_row.addWidget(ai_url_label)
+        self.ai_base_url_input = QLineEdit()
+        self.ai_base_url_input.setPlaceholderText("https://api.example.com/v1")
+        ai_url_row.addWidget(self.ai_base_url_input)
+        ai_layout.addLayout(ai_url_row)
+
+        ai_model_row = QHBoxLayout()
+        ai_model_label = QLabel("模型")
+        ai_model_label.setFixedWidth(55)
+        ai_model_row.addWidget(ai_model_label)
+        self.ai_model_input = QLineEdit()
+        self.ai_model_input.setPlaceholderText("deepseek-chat")
+        ai_model_row.addWidget(self.ai_model_input)
+        ai_layout.addLayout(ai_model_row)
+
+        ai_key_row = QHBoxLayout()
+        ai_key_label = QLabel("Key")
+        ai_key_label.setFixedWidth(55)
+        ai_key_row.addWidget(ai_key_label)
+        self.ai_api_key_input = QLineEdit()
+        self.ai_api_key_input.setPlaceholderText("API Key")
+        self.ai_api_key_input.setEchoMode(QLineEdit.Password)
+        ai_key_row.addWidget(self.ai_api_key_input)
+        ai_layout.addLayout(ai_key_row)
+        layout.addWidget(self.ai_config_widget)
 
         r_media = QHBoxLayout()
         self.normalize_media_check = QCheckBox("强制保持图片目录统一")
@@ -542,6 +586,27 @@ class ScrapeSettingsDialog(QDialog):
         layout.addLayout(btn_row)
 
         self.datasource_combo.currentIndexChanged.connect(self._on_ds_changed)
+        self.translate_provider_combo.currentIndexChanged.connect(
+            self._on_translate_provider_changed)
+
+    def _save_translation_config(self):
+        if self._current_translate_provider == 'ai':
+            self._translate_configs['ai'] = {
+                'base_url': self.ai_base_url_input.text().strip(),
+                'model': self.ai_model_input.text().strip(),
+                'api_key': self.ai_api_key_input.text().strip(),
+            }
+
+    def _on_translate_provider_changed(self, _idx):
+        self._save_translation_config()
+        provider = self.translate_provider_combo.currentData()
+        self._current_translate_provider = provider
+        if provider == 'ai':
+            config = self._translate_configs.get('ai', {})
+            self.ai_base_url_input.setText(config.get('base_url', ''))
+            self.ai_model_input.setText(config.get('model', ''))
+            self.ai_api_key_input.setText(config.get('api_key', ''))
+        self.ai_config_widget.setVisible(provider == 'ai')
 
     def _on_ds_changed(self, _idx):
         from datasource_base import get_datasource
@@ -569,7 +634,12 @@ class ScrapeSettingsDialog(QDialog):
         if idx >= 0:
             self.scrape_mode_combo.setCurrentIndex(idx)
         self.video_check.setChecked(s.get('video', False))
-        self.translate_check.setChecked(s.get('translate', True))
+        provider = s.get('translate_provider')
+        if provider not in ('off', 'google', 'ai'):
+            provider = 'google' if s.get('translate', True) else 'off'
+        idx = self.translate_provider_combo.findData(provider)
+        self.translate_provider_combo.setCurrentIndex(idx)
+        self._on_translate_provider_changed(idx)
         self.filename_as_title_check.setChecked(s.get('filename_as_title', False))
         self.normalize_media_check.setChecked(
             s.get('normalize_media_paths', True))
@@ -586,13 +656,15 @@ class ScrapeSettingsDialog(QDialog):
         self._on_ds_changed(0)
 
     def get_settings(self):
+        self._save_translation_config()
         current_ds = self.datasource_combo.currentData()
         self._api_keys[current_ds] = self.apikey_input.text().strip()
         return {
             'online_mode': self.online_check.isChecked(),
             'scrape_mode': self.scrape_mode_combo.currentData(),
             'video': self.video_check.isChecked(),
-            'translate': self.translate_check.isChecked(),
+            'translate_provider': self.translate_provider_combo.currentData(),
+            'translate_configs': copy.deepcopy(self._translate_configs),
             'filename_as_title': self.filename_as_title_check.isChecked(),
             'normalize_media_paths': self.normalize_media_check.isChecked(),
             'anbernic_compatible': self.anbernic_compatible_check.isChecked(),
@@ -1162,7 +1234,8 @@ class MainWindow(QMainWindow):
             'online_mode': True,
             'scrape_mode': 'complement',
             'video': False,
-            'translate': True,
+            'translate_provider': 'google',
+            'translate_configs': {'google': {}, 'ai': {}},
             'filename_as_title': False,
             'normalize_media_paths': True,
             'anbernic_compatible': False,
@@ -1216,7 +1289,9 @@ class MainWindow(QMainWindow):
             'thread_count': self.thread_spin.value(),
             'online_mode': s.get('online_mode', True),
             'video': s.get('video', False),
-            'translate': s.get('translate', True),
+            'translate_provider': s.get('translate_provider', 'google'),
+            'translate_configs': copy.deepcopy(
+                s.get('translate_configs', {'google': {}, 'ai': {}})),
             'proxy': s.get('proxy', ''),
             'api_key': s.get('api_key', ''),
             'scrape_mode': s.get('scrape_mode', 'complement'),
@@ -1232,7 +1307,10 @@ class MainWindow(QMainWindow):
             return
         try:
             old = json.loads(old_path.read_text(encoding='utf-8'))
-            global_keys = {'language', 'online_mode', 'translate', 'proxy', 'api_key'}
+            global_keys = {
+                'language', 'online_mode', 'translate', 'translate_provider',
+                'translate_configs', 'proxy', 'api_key',
+            }
             save_json_config(GLOBAL_CONFIG_FILE,
                              {k: v for k, v in old.items() if k in global_keys})
             switch_keys = {'xci_dir', 'keys_path', 'generate_meta', 'generate_gamelist'}
@@ -1252,6 +1330,7 @@ class MainWindow(QMainWindow):
         if 'thread_count' in cfg:
             self.thread_spin.setValue(cfg['thread_count'])
         scrape_keys = ('online_mode', 'scrape_mode', 'video', 'translate',
+                       'translate_provider', 'translate_configs',
                        'filename_as_title', 'normalize_media_paths',
                        'anbernic_compatible', 'proxy', 'api_key',
                        'datasource', 'api_keys')

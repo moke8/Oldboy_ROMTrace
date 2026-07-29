@@ -6,7 +6,8 @@ import threading
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
-from datasource_base import set_proxy, google_translate, get_datasource, _http_get_bytes
+from datasource_base import set_proxy, get_datasource, _http_get_bytes
+from translate_google import translate as google_translate
 
 
 # ===== 工具函数 =====
