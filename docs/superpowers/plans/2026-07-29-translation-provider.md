@@ -148,3 +148,42 @@ Expected: 命令退出码为 0，且无空白错误或硬编码 Key。
 
 Run: `git add translate_base.py translate_google.py translate_deepseek.py datasource_base.py main.py platform_base.py scrape.py README.md tests/test_translate.py tests/test_datasource_base.py tests/test_scrape_settings.py tests/test_scrape_logging.py tests/test_scrape_media.py && git commit -m "feat: 拆分可配置翻译 Provider"`
 Expected: 仅提交上述翻译功能文件。
+
+### Task 5: AI 翻译错误日志
+
+**Files:**
+- Modify: `translate_deepseek.py`
+- Modify: `translate_google.py`
+- Modify: `translate_base.py`
+- Modify: `scrape.py`
+- Modify: `tests/test_translate.py`
+- Modify: `tests/test_scrape_logging.py`
+
+**Interfaces:**
+- Produces: 三个 `translate()` 函数接受可选 `log` 回调
+- Produces: Provider 失败日志格式为 `[翻译] <模型或 Provider>: <中文原因>`
+
+- [ ] **Step 1: 编写错误日志失败测试**
+
+Mock AI 接口返回 `404 model_not_found`，断言日志为 `[翻译] MiniMax-M2.7: 该模型不存在，或当前 Key 无权访问。`；覆盖配置缺失、网络超时、无效响应和调度器日志传递，并断言日志不包含 Key。
+
+- [ ] **Step 2: 运行测试确认失败**
+
+Run: `.conda-env/bin/python -m unittest tests.test_translate -v`
+Expected: FAIL，提示 `translate()` 不接受 `log` 或未生成错误日志。
+
+- [ ] **Step 3: 实现脱敏中文错误日志**
+
+Provider 函数增加 `log=None`，用内部函数输出 `[翻译]` 日志。AI 捕获 `HTTPError` 并解析响应中的 `error.code` 与 `error.message`；`model_not_found` 映射为固定中文原因，其他错误使用脱敏后的服务端消息。配置、网络、超时和解析错误分别输出明确中文原因。
+
+- [ ] **Step 4: 贯通调度器和刮削日志**
+
+`translate_base.translate()` 将 `log` 传给具体 Provider，`scrape.py` 两处调用传入当前 `log`；未变化结果记录“未生成新译文”，避免再次笼统描述失败。
+
+- [ ] **Step 5: 运行针对性和完整测试**
+
+Run: `.conda-env/bin/python -m unittest tests.test_translate tests.test_scrape_logging -v`
+Expected: PASS。
+
+Run: `QT_QPA_PLATFORM=offscreen .conda-env/bin/python -m unittest discover -s tests -v`
+Expected: PASS。
