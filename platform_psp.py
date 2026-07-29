@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """PlayStation Portable (PSP) - 平台模块"""
 
+import re
 import struct
 import zlib
 from pathlib import Path
+
+from game_psp_db import PSP_GAME_DB
 
 PLATFORM_TITLE = "PlayStation Portable"
 CONFIG_FILENAME = "psp_config.json"
@@ -206,6 +209,17 @@ def _extract_from_pbp(pbp_path, lang_code, log):
 
 # ===== PSP 提取 =====
 
+def _normalize_disc_id(disc_id):
+    compact = re.sub(r'[^A-Z0-9]', '', (disc_id or '').upper())
+    if re.fullmatch(r'U[CL][A-Z]{2}\d{5}', compact):
+        return compact
+    return disc_id or ''
+
+
+def _resolve_title_en(disc_id, fallback_title):
+    return PSP_GAME_DB.get(_normalize_disc_id(disc_id)) or fallback_title
+
+
 def extract_psp_info(psp_path, lang_code='en', log=print):
     ext = Path(psp_path).suffix.lower()
     sfo_data = None
@@ -252,11 +266,12 @@ def extract_psp_info(psp_path, lang_code='en', log=print):
 
     title = sfo.get('TITLE', '') or Path(psp_path).stem
     disc_id = sfo.get('DISC_ID', '') or ''
+    normalized_disc_id = _normalize_disc_id(disc_id)
 
     info = {
         'title': title,
-        'title_en': title,
-        'disc_id': disc_id,
+        'title_en': _resolve_title_en(normalized_disc_id, title),
+        'disc_id': normalized_disc_id,
         'publisher': '',
         'filename': Path(psp_path).name,
     }

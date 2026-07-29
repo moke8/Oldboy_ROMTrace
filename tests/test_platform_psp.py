@@ -45,16 +45,24 @@ def _write_pbp(path, title, disc_id):
 
 
 class PSPPlatformTests(unittest.TestCase):
-    def test_chinese_title_is_not_replaced_with_disc_id(self):
+    def test_known_disc_id_uses_database_title(self):
         with tempfile.TemporaryDirectory() as tmp:
             game = Path(tmp) / 'game.pbp'
-            _write_pbp(game, '北欧女神 蕾娜斯', 'ULJM05101')
-
+            _write_pbp(game, 'Chinese Localized Title', 'uljm-05101')
             result = extract_psp_info(game, log=lambda _: None)
 
-        self.assertEqual('北欧女神 蕾娜斯', result['title_en'])
+        self.assertEqual('Chinese Localized Title', result['title'])
+        self.assertEqual('Valkyrie Profile: Lenneth', result['title_en'])
         self.assertEqual('ULJM05101', result['disc_id'])
-        self.assertNotEqual(result['disc_id'], result['title_en'])
+
+    def test_unknown_disc_id_falls_back_to_sfo_title(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp) / 'game.pbp'
+            _write_pbp(game, 'Unknown Localized Title', 'ULJM99999')
+            result = extract_psp_info(game, log=lambda _: None)
+
+        self.assertEqual('Unknown Localized Title', result['title_en'])
+        self.assertEqual('ULJM99999', result['disc_id'])
 
 
 if __name__ == '__main__':
