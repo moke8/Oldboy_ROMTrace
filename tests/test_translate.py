@@ -1,6 +1,8 @@
 import json
+import io
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlsplit
 
 import translate_base
@@ -39,8 +41,85 @@ class GoogleTranslateTests(unittest.TestCase):
         self.assertEqual(query['tl'], ['zh-CN'])
         self.assertEqual(result, '宝可梦 心金')
 
+    def test_network_error_logs_readable_reason(self):
+        messages = []
+
+        with patch(
+                'translate_google.urlopen',
+                side_effect=URLError('connection refused')):
+            result = translate_google.translate(
+                'Original', 'zh-CN', log=messages.append)
+
+        self.assertEqual(result, 'Original')
+        self.assertEqual(messages, [
+            '[翻译] Google 翻译: 网络连接失败：connection refused。',
+        ])
+
 
 class DeepSeekTranslateTests(unittest.TestCase):
+    def test_model_not_found_logs_readable_reason_without_key(self):
+        error_body = json.dumps({
+            'error': {
+                'message': (
+                    'The model `MiniMax-M2.7` does not exist or you do not '
+                    'have access to it.'),
+                'code': 'model_not_found',
+            },
+        }).encode()
+        http_error = HTTPError(
+            'https://api.example.com/v1/chat/completions',
+            404,
+            'Not Found',
+            {},
+            io.BytesIO(error_body),
+        )
+        messages = []
+        config = {
+            'base_url': 'https://api.example.com/v1',
+            'model': 'MiniMax-M2.7',
+            'api_key': 'super-secret-key',
+        }
+
+        with patch('translate_deepseek.urlopen', side_effect=http_error):
+            result = translate_deepseek.translate(
+                'English description', 'zh-CN', config, log=messages.append)
+
+        self.assertEqual(result, 'English description')
+        self.assertEqual(messages, [
+            '[翻译] MiniMax-M2.7: 该模型不存在，或当前 Key 无权访问。',
+        ])
+        self.assertNotIn('super-secret-key', '\n'.join(messages))
+
+    def test_missing_config_logs_specific_reason(self):
+        messages = []
+
+        result = translate_deepseek.translate(
+            'Original', 'zh-CN', {}, log=messages.append)
+
+        self.assertEqual(result, 'Original')
+        self.assertEqual(messages, [
+            '[翻译] AI 翻译: 缺少中转站、模型或 Key 配置。',
+        ])
+
+    def test_network_error_logs_specific_reason(self):
+        messages = []
+        config = {
+            'base_url': 'https://api.example.com/v1',
+            'model': 'model-name',
+            'api_key': 'key',
+        }
+
+        with patch(
+                'translate_deepseek.urlopen',
+                side_effect=URLError('connection refused')):
+            result = translate_deepseek.translate(
+                'Original', 'zh-CN', config, log=messages.append)
+
+        self.assertEqual(result, 'Original')
+        self.assertEqual(messages, [
+            '[翻译] model-name: 网络连接失败：connection refused。',
+        ])
+
     def test_builds_openai_compatible_request(self):
         requests = []
 
@@ -167,6 +246,16 @@ class TranslateDispatcherTests(unittest.TestCase):
 
         mock.assert_called_once_with('Original', 'zh-CN', configs['ai'])
         self.assertEqual(result, '译文')
+
+    def test_ai_dispatches_log_callback(self):
+        configs = {'ai': {'model': 'deepseek-chat'}}
+        logger = Mock()
+        with patch('translate_base.translate_ai', return_value='译文') as mock:
+            translate_base.translate(
+                'Original', 'zh-CN', 'ai', configs, log=logger)
+
+        mock.assert_called_once_with(
+            'Original', 'zh-CN', configs['ai'], log=logger)
 
     def test_unknown_provider_returns_original(self):
         self.assertEqual(

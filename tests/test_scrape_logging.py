@@ -198,7 +198,10 @@ class ScrapeActionPrefixTests(unittest.TestCase):
 
             with (
                 patch('scrape.get_datasource', return_value=FakeSource()),
-                patch('scrape.translate_text', side_effect=lambda text, *_args: text),
+                patch(
+                    'scrape.translate_text',
+                    side_effect=lambda text, *_args, **_kwargs: text,
+                ),
             ):
                 batch_scrape(
                     game_dir=root,
@@ -218,7 +221,7 @@ class ScrapeActionPrefixTests(unittest.TestCase):
                 )
 
             text = '\n'.join(messages)
-            self.assertIn('[翻译] 翻译未变化或失败 description: Game.gba', text)
+            self.assertIn('[翻译] 未生成新译文 description: Game.gba', text)
             self.assertNotIn('[翻译] 翻译完成 description: Game.gba', text)
 
 

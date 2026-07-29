@@ -846,7 +846,8 @@ def batch_scrape(
                                 original_value = online[k]
                                 translated_value = translate_text(
                                     original_value, google_lang,
-                                    translate_provider, translate_configs)
+                                    translate_provider, translate_configs,
+                                    log=log)
                                 if (translated_value
                                         and translated_value != original_value):
                                     online[k] = translated_value
@@ -855,7 +856,7 @@ def batch_scrape(
                                     )
                                 else:
                                     log(
-                                        f"[翻译] 翻译未变化或失败 {k}: "
+                                        f"[翻译] 未生成新译文 {k}: "
                                         f"{display_name}"
                                     )
                     if video:
@@ -885,7 +886,7 @@ def batch_scrape(
                     )
                     translated = translate_text(
                         info['title'], google_lang,
-                        translate_provider, translate_configs)
+                        translate_provider, translate_configs, log=log)
                     if translated and translated != info['title']:
                         info['title'] = translated
                         log(f"[翻译] 游戏标题翻译完成: {translated}")

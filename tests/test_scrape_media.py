@@ -492,7 +492,7 @@ class BatchScrapeMediaTests(unittest.TestCase):
                 )
 
             mock.assert_called_once_with(
-                'English Game', 'zh-CN', 'ai', configs)
+                'English Game', 'zh-CN', 'ai', configs, log=print)
             self.assertIn(
                 'game: 中文游戏',
                 (root / 'metadata.pegasus.txt').read_text(encoding='utf-8'),
