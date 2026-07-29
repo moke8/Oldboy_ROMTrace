@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import build_psp_db
 from build_psp_db import (
     discover_page_count,
     extract_serial_map,
@@ -23,7 +24,7 @@ PAGE_ONE = '''
 <tr>
   <td>Unknown</td><td><a href="/disc/2/">Invalid</a></td>
   <td>PSP</td><td>1.00</td><td></td><td></td>
-  <td title="ROSE 00001">ROSE 00001</td><td></td>
+  <td title="ULUS12345A">ULUS12345A</td><td></td>
 </tr>
 </table>
 '''
@@ -71,6 +72,10 @@ class PSPDatabaseBuilderTests(unittest.TestCase):
     def test_rejects_a_page_without_game_rows(self):
         with self.assertRaisesRegex(ValueError, 'no game rows'):
             extract_serial_map(['<html><body>unexpected response</body></html>'])
+
+    def test_rejects_database_below_safe_entry_count(self):
+        with self.assertRaisesRegex(ValueError, 'at least 3300'):
+            build_psp_db.validate_serial_map({'ULJM05101': 'Valkyrie'})
 
 
 class PSPGeneratedDatabaseTests(unittest.TestCase):

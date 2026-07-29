@@ -2,7 +2,9 @@ import struct
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
+import platform_psp
 from platform_psp import extract_psp_info
 
 
@@ -49,7 +51,12 @@ class PSPPlatformTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             game = Path(tmp) / 'game.pbp'
             _write_pbp(game, 'Chinese Localized Title', 'uljm-05101')
-            result = extract_psp_info(game, log=lambda _: None)
+            with patch.dict(
+                platform_psp.PSP_GAME_DB,
+                {'ULJM05101': 'Valkyrie Profile: Lenneth'},
+                clear=True,
+            ):
+                result = extract_psp_info(game, log=lambda _: None)
 
         self.assertEqual('Chinese Localized Title', result['title'])
         self.assertEqual('Valkyrie Profile: Lenneth', result['title_en'])
@@ -59,7 +66,8 @@ class PSPPlatformTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             game = Path(tmp) / 'game.pbp'
             _write_pbp(game, 'Unknown Localized Title', 'ULJM99999')
-            result = extract_psp_info(game, log=lambda _: None)
+            with patch.dict(platform_psp.PSP_GAME_DB, {}, clear=True):
+                result = extract_psp_info(game, log=lambda _: None)
 
         self.assertEqual('Unknown Localized Title', result['title_en'])
         self.assertEqual('ULJM99999', result['disc_id'])

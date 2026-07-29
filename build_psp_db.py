@@ -13,8 +13,10 @@ from build_db_utils import clean_db_title
 
 SOURCE_URL = 'http://redump.org/discs/system/psp/'
 DEFAULT_OUTPUT = Path('game_psp_db.py')
+MIN_EXPECTED_ENTRIES = 3300
 DISC_ID_PATTERN = re.compile(
-    r'(?<![A-Z0-9])(U[CL][A-Z]{2})[ -]?(\d{5})(?!\d)', re.IGNORECASE
+    r'(?<![A-Z0-9])(U[CL][A-Z]{2})[ -]?(\d{5})(?![A-Z0-9])',
+    re.IGNORECASE,
 )
 PAGE_PATTERN = re.compile(r'[?&]page=(\d+)')
 
@@ -105,6 +107,14 @@ def extract_serial_map(page_contents):
     return serial_map
 
 
+def validate_serial_map(serial_map):
+    if len(serial_map) < MIN_EXPECTED_ENTRIES:
+        raise ValueError(
+            f'Redump PSP database requires at least {MIN_EXPECTED_ENTRIES} '
+            f'entries; found {len(serial_map)}'
+        )
+
+
 def download_page(url):
     request = Request(url, headers={'User-Agent': 'game-scanf PSP DB builder'})
     with urlopen(request, timeout=30) as response:
@@ -146,8 +156,7 @@ def main():
 
     pages = download_listing_pages()
     serial_map = extract_serial_map(pages)
-    if not serial_map:
-        raise RuntimeError('Redump PSP listing contained no valid DISC_ID rows')
+    validate_serial_map(serial_map)
     write_database(serial_map, args.output, SOURCE_URL)
     print(f'Extracted {len(serial_map)} PSP DISC_ID mappings')
     print(f'Wrote {args.output}')
