@@ -48,7 +48,7 @@
 
 - **封面提取** — Switch 从 XCI 内部提取封面；其他平台从在线数据库下载 boxart
 - **分类媒体目录** — 正面封面和 Logo 分别保存为 `media/<ROM文件名>/boxfront.<原格式>` 与 `logo.<原格式>`，视频保留独立索引；默认展示优先使用 boxFront，缺失时回退到 Logo
-- **游戏详情媒体** — 详情弹窗分别展示封面、Logo 与视频，视频使用 Qt Multimedia 内嵌播放
+- **游戏详情编辑** — 详情弹窗可编辑元数据，上传、替换或移除封面、Logo 与视频，并按现有 Pegasus、gamelist 和 Anbernic 配置保存
 - **Anbernic 封面兼容** — 可额外生成 `Imgs/<ROM文件名>.<原格式>`，副本不写入 Pegasus 或 `gamelist.xml`，关闭兼容选项后也不会自动删除
 - **完整刮削日志** — 启动时输出脱敏后的全部配置，执行中按文件扫描、游戏解析、游戏搜索、图片下载、图片整理、索引写入等业务前缀记录过程与统计
 - **在线元数据补全** — 支持 TheGamesDB、IGDB、ScreenScraper、Wikipedia 四种数据源

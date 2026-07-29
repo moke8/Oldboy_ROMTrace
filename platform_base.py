@@ -425,7 +425,27 @@ try:
 
         def _show_detail(self, game):
             from main import GameDetailDialog
-            GameDetailDialog(game, self).exec()
+            from game_editor import save_game_edits
+
+            game_dir = self.dir_input.text().strip()
+            global_settings = self.window().get_global_settings()
+            targets = {
+                'pegasus': self.meta_check.isChecked(),
+                'gamelist': self.gamelist_check.isChecked(),
+                'imgs': global_settings.get('anbernic_compatible', False),
+            }
+
+            def _save(edited):
+                save_game_edits(
+                    Path(game_dir), game, edited, targets)
+                self._load_showcase(game_dir)
+
+            GameDetailDialog(
+                game,
+                self,
+                save_targets=targets,
+                save_callback=_save,
+            ).exec()
 
         def _on_card_selection_toggled(self, card, selected):
             if selected:

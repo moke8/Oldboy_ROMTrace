@@ -1,8 +1,9 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
 
-from platform_base import load_showcase_games
+from platform_base import BasePlatformTab, load_showcase_games
 
 
 class ShowcaseMediaTests(unittest.TestCase):
@@ -63,6 +64,42 @@ class ShowcaseMediaTests(unittest.TestCase):
         self.assertTrue(games[0]['boxfront'].endswith('boxfront.png'))
         self.assertTrue(games[0]['logo'].endswith('logo.png'))
         self.assertTrue(games[0]['video'].endswith('video.mp4'))
+
+
+class DetailSaveIntegrationTests(unittest.TestCase):
+    def test_detail_save_uses_current_targets_and_reloads_showcase(self):
+        game = {'file': 'Game.nds', 'title': 'Game'}
+        saved_edit = {'file': 'Game.nds', 'title': '新标题'}
+        captured = {}
+
+        class FakeDialog:
+            def __init__(self, *args, **kwargs):
+                captured.update(kwargs)
+
+            def exec(self):
+                captured['save_callback'](saved_edit)
+
+        tab = Mock()
+        tab.meta_check.isChecked.return_value = True
+        tab.gamelist_check.isChecked.return_value = False
+        tab.dir_input.text.return_value = '/roms'
+        tab.window.return_value.get_global_settings.return_value = {
+            'anbernic_compatible': True,
+        }
+
+        with patch('main.GameDetailDialog', FakeDialog), \
+                patch('game_editor.save_game_edits') as save:
+            BasePlatformTab._show_detail(tab, game)
+
+        self.assertEqual(
+            {'pegasus': True, 'gamelist': False, 'imgs': True},
+            captured['save_targets'],
+        )
+        save.assert_called_once_with(
+            Path('/roms'), game, saved_edit,
+            {'pegasus': True, 'gamelist': False, 'imgs': True},
+        )
+        tab._load_showcase.assert_called_once_with('/roms')
 
 
 if __name__ == '__main__':
