@@ -1,3 +1,4 @@
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -70,6 +71,18 @@ class PSPDatabaseBuilderTests(unittest.TestCase):
     def test_rejects_a_page_without_game_rows(self):
         with self.assertRaisesRegex(ValueError, 'no game rows'):
             extract_serial_map(['<html><body>unexpected response</body></html>'])
+
+
+class PSPGeneratedDatabaseTests(unittest.TestCase):
+    def test_generated_database_has_expected_psp_ids(self):
+        from game_psp_db import PSP_GAME_DB
+
+        self.assertGreaterEqual(len(PSP_GAME_DB), 3300)
+        self.assertIn('ULJM05101', PSP_GAME_DB)
+        self.assertTrue(all(
+            re.fullmatch(r'U[CL][A-Z]{2}\d{5}', disc_id)
+            for disc_id in PSP_GAME_DB
+        ))
 
 
 if __name__ == '__main__':
