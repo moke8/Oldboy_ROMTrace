@@ -5,7 +5,7 @@ import struct
 import re
 from pathlib import Path
 
-from scrape import _has_cjk
+from ps1_game_db import PS1_GAME_DB
 
 PLATFORM_TITLE = "PlayStation 1"
 CONFIG_FILENAME = "ps1_config.json"
@@ -18,6 +18,19 @@ COLLECTION_DEFAULTS = {
 }
 
 SECTOR_SIZE = 2048
+
+
+def _normalize_serial(serial):
+    compact = re.sub(r'[^A-Z0-9]', '', (serial or '').upper())
+    match = re.fullmatch(r'([A-Z]{4})(\d{5})', compact)
+    if not match:
+        return serial or ''
+    return f'{match.group(1)}-{match.group(2)}'
+
+
+def _resolve_title_en(serial, fallback_title):
+    normalized = _normalize_serial(serial)
+    return PS1_GAME_DB.get(normalized) or fallback_title
 
 
 # ===== PARAM.SFO 解析 =====
@@ -89,14 +102,11 @@ def _extract_from_pbp(file_path, log):
 
     title = sfo.get('TITLE', '') or Path(file_path).stem
     disc_id = sfo.get('DISC_ID', '') or ''
-    title_en = title
-    if _has_cjk(title) and disc_id:
-        title_en = disc_id
 
     return {
         'title': title,
-        'title_en': title_en,
-        'disc_id': disc_id,
+        'title_en': _resolve_title_en(disc_id, title),
+        'disc_id': _normalize_serial(disc_id),
         'publisher': '',
         'filename': Path(file_path).name,
     }
@@ -115,8 +125,8 @@ def _extract_from_chd(file_path, log):
             title = clean_name or p.stem
             return {
                 'title': title,
-                'title_en': serial,
-                'disc_id': serial,
+                'title_en': _resolve_title_en(serial, title),
+                'disc_id': _normalize_serial(serial),
                 'publisher': '',
                 'filename': p.name,
             }
@@ -183,10 +193,11 @@ def _extract_from_disc(file_path, log):
         with open(file_path, 'rb') as f:
             serial = _read_system_cnf_serial(f)
             if serial:
+                title = p.stem
                 return {
-                    'title': p.stem,
-                    'title_en': serial,
-                    'disc_id': serial,
+                    'title': title,
+                    'title_en': _resolve_title_en(serial, title),
+                    'disc_id': _normalize_serial(serial),
                     'publisher': '',
                     'filename': p.name,
                 }

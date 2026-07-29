@@ -5,8 +5,6 @@ import struct
 import zlib
 from pathlib import Path
 
-from scrape import _has_cjk
-
 PLATFORM_TITLE = "PlayStation Portable"
 CONFIG_FILENAME = "psp_config.json"
 TGDB_PLATFORM_ID = 13
@@ -255,13 +253,9 @@ def extract_psp_info(psp_path, lang_code='en', log=print):
     title = sfo.get('TITLE', '') or Path(psp_path).stem
     disc_id = sfo.get('DISC_ID', '') or ''
 
-    title_en = title
-    if _has_cjk(title) and disc_id:
-        title_en = disc_id
-
     info = {
         'title': title,
-        'title_en': title_en,
+        'title_en': title,
         'disc_id': disc_id,
         'publisher': '',
         'filename': Path(psp_path).name,

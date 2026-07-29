@@ -1,3 +1,4 @@
 pycryptodome
 PySide6
 yt-dlp
+chdimage==0.2.1

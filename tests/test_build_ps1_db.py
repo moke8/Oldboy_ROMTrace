@@ -1,0 +1,44 @@
+import tempfile
+import unittest
+from pathlib import Path
+
+from build_ps1_db import extract_serial_map, write_database
+
+
+class PS1DatabaseBuilderTests(unittest.TestCase):
+    def test_extracts_serial_and_name_pairs(self):
+        source = '''SLPS-01220:
+  name: "Namco Anthology 1"
+  localizedName: "ナムコアンソロジー１"
+SLUS-00001:
+  name: "Air Combat"
+metadata:
+  name: "Not a game entry"
+'''
+
+        result = extract_serial_map(source)
+
+        self.assertEqual({
+            'SLPS-01220': 'Namco Anthology 1',
+            'SLUS-00001': 'Air Combat',
+        }, result)
+
+    def test_writes_sorted_importable_database_with_source(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / 'ps1_game_db.py'
+            write_database(
+                {'SLUS-00001': 'Air Combat', 'SLPS-01220': "Namco's Game"},
+                output,
+                'DuckStation gamedb.yaml',
+            )
+            generated = output.read_text(encoding='utf-8')
+
+        self.assertIn('DuckStation gamedb.yaml', generated)
+        self.assertIn('https://github.com/stenzek/duckstation', generated)
+        self.assertLess(generated.index("'SLPS-01220'"),
+                        generated.index("'SLUS-00001'"))
+        self.assertIn("Namco\\'s Game", generated)
+
+
+if __name__ == '__main__':
+    unittest.main()

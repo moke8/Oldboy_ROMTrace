@@ -6,3 +6,4 @@
 6. ~~ScreenScraper刮削源支持~~ ✅
 7. ~~NDS刮削不使用ROM图标，使用在线封面~~ ✅
 8. ~~PS1平台支持 (CHD/PBP解析)~~ ✅
+9. 将 `build_gba_db.py`、`build_nds_db.py`、`build_ps1_db.py` 统一为 `build_intro_db.py`，通过平台和数据源参数控制解析规则、输出变量名与目标文件
