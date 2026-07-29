@@ -3,7 +3,7 @@
 
 import json
 from urllib.request import urlopen, Request, ProxyHandler, build_opener, install_opener
-from urllib.parse import urlencode, quote
+from urllib.parse import urlencode
 
 
 # ===== 网络工具 =====
@@ -35,27 +35,6 @@ def _http_get_bytes(url):
             return resp.read()
     except Exception:
         return None
-
-
-# ===== Google 翻译 =====
-
-def google_translate(text, google_lang_code):
-    if not text or google_lang_code.startswith('en'):
-        return text
-    url = (
-        "https://translate.googleapis.com/translate_a/single"
-        f"?client=gtx&sl=auto&tl={google_lang_code}&dt=t"
-        f"&q={quote(text[:4000])}"
-    )
-    try:
-        req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urlopen(req, timeout=10) as resp:
-            data = json.loads(resp.read().decode())
-        if data and isinstance(data, list) and data[0]:
-            return ''.join(seg[0] for seg in data[0] if seg[0])
-    except Exception:
-        pass
-    return text
 
 
 # ===== 数据源基类 =====

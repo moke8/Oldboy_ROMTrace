@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+"""翻译 Provider 统一调度函数。"""
+
+from translate_deepseek import translate as translate_ai
+from translate_google import translate as translate_google
+
+
+def translate(text, target_lang, provider, configs=None):
+    configs = configs or {}
+    if provider == 'google':
+        return translate_google(text, target_lang)
+    if provider == 'ai':
+        return translate_ai(text, target_lang, configs.get('ai', {}))
+    return text
