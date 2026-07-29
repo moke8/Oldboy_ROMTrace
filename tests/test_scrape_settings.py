@@ -5,7 +5,7 @@ os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 from PySide6.QtWidgets import QApplication
 
-from main import ScrapeSettingsDialog
+from main import ScrapeSettingsDialog, _migrate_translation_settings
 
 
 class ScrapeSettingsTests(unittest.TestCase):
@@ -86,6 +86,14 @@ class ScrapeSettingsTests(unittest.TestCase):
         self.addCleanup(dialog.close)
 
         self.assertEqual(dialog.translate_provider_combo.currentData(), 'off')
+
+    def test_migration_removes_legacy_translate_field(self):
+        settings = {'translate': False, 'online_mode': True}
+
+        _migrate_translation_settings(settings)
+
+        self.assertEqual(settings['translate_provider'], 'off')
+        self.assertNotIn('translate', settings)
 
 
 if __name__ == '__main__':

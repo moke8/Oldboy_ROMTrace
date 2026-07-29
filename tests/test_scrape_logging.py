@@ -183,6 +183,44 @@ class ScrapeActionPrefixTests(unittest.TestCase):
                                '[在线]', '[封面]', '[OK]', '[失败]'):
                 self.assertNotIn(old_prefix, text)
 
+    def test_unchanged_translation_is_not_logged_as_completed(self):
+        class FakeSource:
+            display_name = 'FakeSource'
+
+            def fetch_metadata(self, *_args, **_kwargs):
+                return {'description': 'Original description'}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            rom_path = root / 'Game.gba'
+            rom_path.write_bytes(b'rom')
+            messages = []
+
+            with (
+                patch('scrape.get_datasource', return_value=FakeSource()),
+                patch('scrape.translate_text', side_effect=lambda text, *_args: text),
+            ):
+                batch_scrape(
+                    game_dir=root,
+                    extract_fn=lambda *_args, **_kwargs: {
+                        'title': 'Game', 'filename': rom_path.name},
+                    file_extensions=('gba',),
+                    platform_id=5,
+                    platform_name='Game Boy Advance',
+                    collection_defaults={},
+                    online_mode=True,
+                    datasource_name='fake',
+                    google_lang='zh-CN',
+                    translate_provider='google',
+                    thread_count=1,
+                    normalize_media_paths=False,
+                    log=messages.append,
+                )
+
+            text = '\n'.join(messages)
+            self.assertIn('[翻译] 翻译未变化或失败 description: Game.gba', text)
+            self.assertNotIn('[翻译] 翻译完成 description: Game.gba', text)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -6,6 +6,8 @@ from translate_google import translate as translate_google
 
 
 def translate(text, target_lang, provider, configs=None):
+    if not text or not target_lang or target_lang.startswith('en'):
+        return text
     configs = configs or {}
     if provider == 'google':
         return translate_google(text, target_lang)

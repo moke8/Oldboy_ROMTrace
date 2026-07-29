@@ -43,6 +43,13 @@ CARD_H = 260
 COVER_H = 180
 
 
+def _migrate_translation_settings(settings):
+    if 'translate_provider' not in settings and 'translate' in settings:
+        settings['translate_provider'] = (
+            'google' if settings['translate'] else 'off')
+    settings.pop('translate', None)
+
+
 def create_app_icon(size=64):
     """用 Qt 画布生成 ROM 卡带与追踪线路图标。"""
     pixmap = QPixmap(size, size)
@@ -446,6 +453,7 @@ class ScrapeSettingsDialog(QDialog):
             QLabel#sectionTitle { font-size: 14px; font-weight: bold; color: #e6edf3; }
         """)
         self._settings = settings.copy()
+        _migrate_translation_settings(self._settings)
         self._api_keys = dict(settings.get('api_keys', {}))
         self._translate_configs = copy.deepcopy(
             settings.get('translate_configs', {'google': {}, 'ai': {}}))
@@ -1329,10 +1337,8 @@ class MainWindow(QMainWindow):
                 self.lang_combo.setCurrentIndex(idx)
         if 'thread_count' in cfg:
             self.thread_spin.setValue(cfg['thread_count'])
-        if 'translate_provider' not in cfg and 'translate' in cfg:
-            cfg['translate_provider'] = (
-                'google' if cfg['translate'] else 'off')
-        scrape_keys = ('online_mode', 'scrape_mode', 'video', 'translate',
+        _migrate_translation_settings(cfg)
+        scrape_keys = ('online_mode', 'scrape_mode', 'video',
                        'translate_provider', 'translate_configs',
                        'filename_as_title', 'normalize_media_paths',
                        'anbernic_compatible', 'proxy', 'api_key',

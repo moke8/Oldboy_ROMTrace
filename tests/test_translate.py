@@ -93,6 +93,28 @@ class DeepSeekTranslateTests(unittest.TestCase):
             'https://relay.example.com/chat/completions',
         )
 
+    def test_root_url_adds_v1_chat_completions_path(self):
+        requests = []
+
+        def fake_urlopen(request, timeout):
+            requests.append(request)
+            return _FakeResponse({
+                'choices': [{'message': {'content': '译文'}}],
+            })
+
+        config = {
+            'base_url': 'https://relay.example.com',
+            'model': 'model-name',
+            'api_key': 'key',
+        }
+        with patch('translate_deepseek.urlopen', side_effect=fake_urlopen):
+            translate_deepseek.translate('text', 'zh-CN', config)
+
+        self.assertEqual(
+            requests[0].full_url,
+            'https://relay.example.com/v1/chat/completions',
+        )
+
     def test_missing_config_returns_original_text(self):
         self.assertEqual(
             translate_deepseek.translate('Original', 'zh-CN', {}),
@@ -108,6 +130,15 @@ class DeepSeekTranslateTests(unittest.TestCase):
                 'model': 'model-name',
                 'api_key': 'key',
             })
+
+        self.assertEqual(result, 'Original')
+
+    def test_invalid_base_url_returns_original_text(self):
+        result = translate_deepseek.translate('Original', 'zh-CN', {
+            'base_url': 'not a url',
+            'model': 'model-name',
+            'api_key': 'key',
+        })
 
         self.assertEqual(result, 'Original')
 
@@ -142,6 +173,21 @@ class TranslateDispatcherTests(unittest.TestCase):
             translate_base.translate('Original', 'zh-CN', 'unknown', {}),
             'Original',
         )
+
+    def test_english_target_skips_all_providers(self):
+        with (
+            patch('translate_base.translate_google') as google_mock,
+            patch('translate_base.translate_ai') as ai_mock,
+        ):
+            google_result = translate_base.translate(
+                'Original', 'en', 'google', {'google': {}})
+            ai_result = translate_base.translate(
+                'Original', 'en-US', 'ai', {'ai': {'api_key': 'key'}})
+
+        self.assertEqual(google_result, 'Original')
+        self.assertEqual(ai_result, 'Original')
+        google_mock.assert_not_called()
+        ai_mock.assert_not_called()
 
 
 if __name__ == '__main__':

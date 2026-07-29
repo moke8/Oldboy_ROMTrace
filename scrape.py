@@ -843,17 +843,20 @@ def batch_scrape(
                                     f"[翻译] 开始翻译 {k}: {display_name} -> "
                                     f"{google_lang}"
                                 )
+                                original_value = online[k]
                                 translated_value = translate_text(
-                                    online[k], google_lang,
+                                    original_value, google_lang,
                                     translate_provider, translate_configs)
-                                if translated_value:
+                                if (translated_value
+                                        and translated_value != original_value):
                                     online[k] = translated_value
                                     log(
                                         f"[翻译] 翻译完成 {k}: {display_name}"
                                     )
                                 else:
                                     log(
-                                        f"[翻译] 翻译失败 {k}: {display_name}"
+                                        f"[翻译] 翻译未变化或失败 {k}: "
+                                        f"{display_name}"
                                     )
                     if video:
                         video_source = (online.pop('video_url', None)
