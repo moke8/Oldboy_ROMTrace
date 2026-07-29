@@ -15,7 +15,7 @@ SOURCE_URL = 'http://redump.org/discs/system/psp/'
 DEFAULT_OUTPUT = Path('game_psp_db.py')
 MIN_EXPECTED_ENTRIES = 3300
 DISC_ID_PATTERN = re.compile(
-    r'(?<![A-Z0-9])(U[CL][A-Z]{2})[ -]?(\d{5})(?![A-Z0-9])',
+    r'(?<![A-Z0-9])(U[CL][A-Z]{2})[ -]?(\d{5})(?!\d)',
     re.IGNORECASE,
 )
 PAGE_PATTERN = re.compile(r'[?&]page=(\d+)')

@@ -24,7 +24,7 @@ PAGE_ONE = '''
 <tr>
   <td>Unknown</td><td><a href="/disc/2/">Invalid</a></td>
   <td>PSP</td><td>1.00</td><td></td><td></td>
-  <td title="ULUS12345A">ULUS12345A</td><td></td>
+  <td title="ULUS123456">ULUS123456</td><td></td>
 </tr>
 </table>
 '''
@@ -54,6 +54,14 @@ class PSPDatabaseBuilderTests(unittest.TestCase):
             'ULJM05101': 'Valkyrie Profile: Lenneth',
             'ULUS10001': "Director's Game",
         }, extract_serial_map([PAGE_ONE, PAGE_TWO]))
+
+    def test_normalizes_redump_release_suffix_to_base_disc_id(self):
+        self.assertEqual(
+            'ULUS10199', build_psp_db._extract_disc_id('ULUS 10199GH')
+        )
+        self.assertEqual(
+            'ULUS10654', build_psp_db._extract_disc_id('ULUS-10654S')
+        )
 
     def test_writes_sorted_importable_database(self):
         with tempfile.TemporaryDirectory() as tmp:
