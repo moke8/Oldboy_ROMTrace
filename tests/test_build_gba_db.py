@@ -24,7 +24,7 @@ class GBADatabaseBuilderTests(unittest.TestCase):
                 check=True,
                 capture_output=True,
             )
-            generated = (tmp_path / 'gba_game_db.py').read_text(
+            generated = (tmp_path / 'game_gba_db.py').read_text(
                 encoding='utf-8'
             )
 

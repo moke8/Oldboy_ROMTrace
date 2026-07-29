@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 from build_db_utils import clean_db_title
 
 INPUT = "Nintendo - Game Boy Advance.xml"
-OUTPUT = "gba_game_db.py"
+OUTPUT = "game_gba_db.py"
 
 with open(INPUT, 'r', encoding='utf-8') as f:
     content = f.read()

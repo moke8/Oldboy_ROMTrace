@@ -10,7 +10,7 @@ from build_db_utils import clean_db_title
 DEFAULT_INPUT = Path(
     'Nintendo - Nintendo DS (Decrypted) (20260724-122857).dat'
 )
-DEFAULT_OUTPUT = Path('nds_game_db.py')
+DEFAULT_OUTPUT = Path('game_nds_db.py')
 
 
 def extract_serial_map(input_path):

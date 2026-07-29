@@ -22,7 +22,7 @@ SOURCE_URL = (
     'https://raw.githubusercontent.com/stenzek/duckstation/'
     'master/data/resources/gamedb.yaml'
 )
-DEFAULT_OUTPUT = Path('ps1_game_db.py')
+DEFAULT_OUTPUT = Path('game_ps1_db.py')
 SERIAL_PATTERN = re.compile(r'^([A-Z0-9]+-[A-Z0-9.-]+):$')
 
 

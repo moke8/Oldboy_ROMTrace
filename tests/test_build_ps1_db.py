@@ -2,10 +2,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from build_ps1_db import extract_serial_map, write_database
+from build_ps1_db import DEFAULT_OUTPUT, extract_serial_map, write_database
 
 
 class PS1DatabaseBuilderTests(unittest.TestCase):
+    def test_default_output_uses_standard_database_name(self):
+        self.assertEqual(Path('game_ps1_db.py'), DEFAULT_OUTPUT)
+
     def test_extracts_serial_and_name_pairs(self):
         source = '''SLPS-01220:
   name: "Namco Anthology 1"
@@ -25,7 +28,7 @@ metadata:
 
     def test_writes_sorted_importable_database_with_source(self):
         with tempfile.TemporaryDirectory() as tmp:
-            output = Path(tmp) / 'ps1_game_db.py'
+            output = Path(tmp) / 'game_ps1_db.py'
             write_database(
                 {'SLUS-00001': 'Air Combat', 'SLPS-01220': "Namco's Game"},
                 output,
@@ -41,7 +44,7 @@ metadata:
 
     def test_normalizes_names_written_to_database(self):
         with tempfile.TemporaryDirectory() as tmp:
-            output = Path(tmp) / 'ps1_game_db.py'
+            output = Path(tmp) / 'game_ps1_db.py'
             write_database(
                 {'SLUS-00001': 'Air Combat (USA) (Rev 1)'},
                 output,

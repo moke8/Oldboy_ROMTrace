@@ -5,7 +5,7 @@ import re
 import struct
 from pathlib import Path
 
-from nds_game_db import NDS_GAME_DB
+from game_nds_db import NDS_GAME_DB
 from PySide6.QtCore import Qt, QBuffer, QIODevice
 from PySide6.QtGui import QImage, QColor
 

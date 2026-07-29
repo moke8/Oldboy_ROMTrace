@@ -2,10 +2,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from build_nds_db import extract_serial_map, write_database
+from build_nds_db import DEFAULT_OUTPUT, extract_serial_map, write_database
 
 
 class NDSDatabaseBuilderTests(unittest.TestCase):
+    def test_default_output_uses_standard_database_name(self):
+        self.assertEqual(Path('game_nds_db.py'), DEFAULT_OUTPUT)
+
     def test_extracts_valid_serials_and_keeps_first_duplicate(self):
         xml = '''<?xml version="1.0"?>
 <datafile>
@@ -27,7 +30,7 @@ class NDSDatabaseBuilderTests(unittest.TestCase):
 
     def test_writes_sorted_importable_python_database(self):
         with tempfile.TemporaryDirectory() as tmp:
-            output = Path(tmp) / 'nds_game_db.py'
+            output = Path(tmp) / 'game_nds_db.py'
             write_database(
                 {'AYEJ': 'Ys II DS (Japan)', 'AYDJ': "Ys DS Director's Cut"},
                 output,
@@ -42,7 +45,7 @@ class NDSDatabaseBuilderTests(unittest.TestCase):
 
     def test_normalizes_names_written_to_database(self):
         with tempfile.TemporaryDirectory() as tmp:
-            output = Path(tmp) / 'nds_game_db.py'
+            output = Path(tmp) / 'game_nds_db.py'
             write_database({
                 'A001': ('Pac-Pix (Europe) (En,Fr,De,Es,It) '
                          '(Demo) (Kiosk)'),

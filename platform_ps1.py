@@ -5,7 +5,7 @@ import struct
 import re
 from pathlib import Path
 
-from ps1_game_db import PS1_GAME_DB
+from game_ps1_db import PS1_GAME_DB
 
 PLATFORM_TITLE = "PlayStation 1"
 CONFIG_FILENAME = "ps1_config.json"

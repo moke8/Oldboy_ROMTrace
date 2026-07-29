@@ -4,7 +4,7 @@
 import re
 from pathlib import Path
 
-from gba_game_db import GBA_GAME_DB
+from game_gba_db import GBA_GAME_DB
 
 PLATFORM_TITLE = "Game Boy Advance"
 CONFIG_FILENAME = "gba_config.json"
