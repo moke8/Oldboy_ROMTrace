@@ -598,105 +598,162 @@ class ScrapeSettingsDialog(QDialog):
 
 
 class GameDetailDialog(QDialog):
-    def __init__(self, game_data, parent=None):
+    def __init__(self, game_data, parent=None, save_targets=None,
+                 save_callback=None):
         super().__init__(parent)
-        self.game = game_data
+        self.game = dict(game_data)
+        self.save_targets = dict(save_targets or {})
+        self.save_callback = save_callback
+        self._media_edits = {
+            kind: {'upload': '', 'removed': False}
+            for kind in ('boxfront', 'logo', 'video')
+        }
+        self._field_inputs = {}
         self.setWindowTitle(game_data.get('title', '游戏详情'))
-        self.setMinimumSize(760, 500)
+        self.setMinimumSize(880, 620)
         self._media_player = None
         self._video_tab_index = -1
         self.setStyleSheet("""
-            QLabel#titleLabel { font-size: 20px; font-weight: bold; color: #e6edf3; }
             QLabel#fieldName  { color: #8b949e; font-size: 12px; }
-            QLabel#fieldValue, QLabel#descriptionLabel { color: #c9d1d9; font-size: 13px; }
+            QLabel#saveTargetsLabel { color: #8b949e; font-size: 12px; }
         """)
         self._build_ui()
 
     def _build_ui(self):
-        layout = QHBoxLayout(self)
-        layout.setSpacing(24)
-        layout.setContentsMargins(24, 24, 24, 24)
+        outer = QVBoxLayout(self)
+        outer.setSpacing(14)
+        outer.setContentsMargins(24, 24, 24, 24)
 
-        media_tabs = self._build_media_tabs()
-        layout.addWidget(media_tabs, 0, Qt.AlignTop)
+        layout = QHBoxLayout()
+        layout.setSpacing(24)
+        outer.addLayout(layout, 1)
+
+        media_column = QVBoxLayout()
+        self._media_tabs = self._build_media_tabs()
+        media_column.addWidget(self._media_tabs)
+        for label, kind in (
+                ('封面', 'boxfront'), ('Logo', 'logo'), ('视频', 'video')):
+            row = QHBoxLayout()
+            choose = QPushButton(f'选择{label}')
+            choose.setObjectName(
+                f"choose{kind[0].upper()}{kind[1:]}Button")
+            choose.clicked.connect(
+                lambda _checked=False, media_kind=kind:
+                self._choose_media(media_kind))
+            remove = QPushButton(f'移除{label}')
+            remove.setObjectName(
+                f"remove{kind[0].upper()}{kind[1:]}Button")
+            remove.clicked.connect(
+                lambda _checked=False, media_kind=kind:
+                self._remove_media(media_kind))
+            row.addWidget(choose)
+            row.addWidget(remove)
+            media_column.addLayout(row)
+        media_column.addStretch()
+        layout.addLayout(media_column)
 
         right = QVBoxLayout()
-        right.setSpacing(10)
+        right.setSpacing(8)
 
-        title = QLabel(self.game.get('title', 'Unknown'))
-        title.setObjectName('titleLabel')
-        title.setWordWrap(True)
-        right.addWidget(title)
+        fields = (
+            ('标题', 'title'),
+            ('游戏 ID', 'game_id'),
+            ('开发商', 'developer'),
+            ('发行商', 'publisher'),
+            ('类型', 'genre'),
+            ('玩家数', 'players'),
+            ('发售日', 'release'),
+            ('评分', 'rating'),
+        )
+        for label, key in fields:
+            self._add_field_row(right, label, key)
 
-        for label, key in [('游戏ID', 'game_id'), ('开发商', 'developer'),
-                           ('类型', 'genre'), ('玩家数', 'players'),
-                           ('发售日', 'release'), ('评分', 'rating')]:
-            val = self.game.get(key, '')
-            if not val:
-                continue
-            row = QHBoxLayout()
-            fl = QLabel(f'{label}:')
-            fl.setObjectName('fieldName')
-            fl.setFixedWidth(55)
-            row.addWidget(fl)
-            vl = QLabel(str(val))
-            vl.setObjectName('fieldValue')
-            vl.setWordWrap(True)
-            row.addWidget(vl)
-            right.addLayout(row)
+        path_row = QHBoxLayout()
+        path_label = QLabel('ROM 路径:')
+        path_label.setObjectName('fieldName')
+        path_label.setFixedWidth(70)
+        path_row.addWidget(path_label)
+        path_input = QLineEdit(str(self.game.get('path', '')))
+        path_input.setObjectName('romPathInput')
+        path_input.setReadOnly(True)
+        path_row.addWidget(path_input)
+        right.addLayout(path_row)
 
-        rom_path = self.game.get('path', '')
-        if rom_path:
-            row = QHBoxLayout()
-            fl = QLabel('路径:')
-            fl.setObjectName('fieldName')
-            fl.setFixedWidth(55)
-            row.addWidget(fl)
-            vl = QLabel(rom_path)
-            vl.setObjectName('fieldValue')
-            vl.setWordWrap(True)
-            vl.setTextInteractionFlags(Qt.TextSelectableByMouse)
-            row.addWidget(vl)
-            right.addLayout(row)
-
-        desc = self.game.get('description', '')
-        if desc:
-            sep = QFrame()
-            sep.setFrameShape(QFrame.HLine)
-            sep.setStyleSheet('background: #30363d; max-height: 1px;')
-            right.addWidget(sep)
-            dl = QLabel(desc)
-            dl.setObjectName('descriptionLabel')
-            dl.setWordWrap(True)
-            dl.setStyleSheet('background: transparent;')
-            scroll = QScrollArea()
-            scroll.setObjectName('descriptionScroll')
-            scroll.setWidget(dl)
-            scroll.setWidgetResizable(True)
-            scroll.setMaximumHeight(200)
-            scroll.setStyleSheet(
-                'QScrollArea { border: none; background: transparent; }'
-                'QScrollArea > QWidget > QWidget { background: transparent; }'
-            )
-            scroll.viewport().setStyleSheet('background: transparent;')
-            right.addWidget(scroll)
+        description_label = QLabel('简介:')
+        description_label.setObjectName('fieldName')
+        right.addWidget(description_label)
+        description = QTextEdit(str(self.game.get('description', '')))
+        description.setObjectName('descriptionInput')
+        description.setStyleSheet('background: transparent;')
+        description.setMaximumHeight(150)
+        self._field_inputs['description'] = description
+        right.addWidget(description)
 
         right.addStretch()
         layout.addLayout(right, 1)
+
+        enabled_targets = []
+        if self.save_targets.get('pegasus'):
+            enabled_targets.append('Pegasus')
+        if self.save_targets.get('gamelist'):
+            enabled_targets.append('gamelist.xml')
+        if self.save_targets.get('imgs'):
+            enabled_targets.append('Imgs')
+        targets = QLabel(
+            '保存目标：' + ('、'.join(enabled_targets) or '未启用'))
+        targets.setObjectName('saveTargetsLabel')
+        outer.addWidget(targets)
+
+        actions = QHBoxLayout()
+        actions.addStretch()
+        cancel = QPushButton('取消')
+        cancel.clicked.connect(self.reject)
+        actions.addWidget(cancel)
+        save = QPushButton('保存')
+        save.setObjectName('saveGameButton')
+        save.clicked.connect(self._save)
+        actions.addWidget(save)
+        outer.addLayout(actions)
+
+    def _add_field_row(self, layout, label, key):
+        row = QHBoxLayout()
+        field_label = QLabel(f'{label}:')
+        field_label.setObjectName('fieldName')
+        field_label.setFixedWidth(70)
+        row.addWidget(field_label)
+        value = self.game.get(key, '')
+        if key == 'genre' and not value:
+            value = self.game.get('genres', '')
+        field_input = QLineEdit(str(value))
+        field_input.setObjectName(f'{key}Input')
+        self._field_inputs[key] = field_input
+        row.addWidget(field_input)
+        layout.addLayout(row)
 
     def _build_media_tabs(self):
         tabs = QTabWidget()
         tabs.setObjectName('mediaTabs')
         tabs.setFixedSize(320, 380)
 
-        boxfront = self.game.get('boxfront') or self.game.get('cover', '')
-        logo = self.game.get('logo', '')
+        self._populate_media_tabs(tabs)
+        tabs.currentChanged.connect(self._media_tab_changed)
+        return tabs
+
+    def _populate_media_tabs(self, tabs):
+        while tabs.count():
+            widget = tabs.widget(0)
+            tabs.removeTab(0)
+            widget.deleteLater()
+        self._video_tab_index = -1
+
+        boxfront = self._current_media('boxfront')
+        logo = self._current_media('logo')
         if boxfront and Path(boxfront).exists():
             tabs.addTab(self._image_page(boxfront), '封面')
         if logo and Path(logo).exists() and logo != boxfront:
             tabs.addTab(self._image_page(logo), 'Logo')
 
-        video = self.game.get('video', '')
+        video = self._current_media('video')
         if video:
             self._video_tab_index = tabs.addTab(
                 self._video_page(video), '视频')
@@ -708,10 +765,62 @@ class GameDetailDialog(QDialog):
                 'background: #0d1117; font-size: 48px; color: #484f58;')
             tabs.addTab(placeholder, '媒体')
 
-        tabs.currentChanged.connect(self._media_tab_changed)
-        if tabs.currentIndex() == self._video_tab_index:
-            self._media_tab_changed(tabs.currentIndex())
-        return tabs
+    def _current_media(self, kind):
+        state = self._media_edits[kind]
+        if state['removed']:
+            return ''
+        if state['upload']:
+            return state['upload']
+        if kind == 'boxfront':
+            return self.game.get('boxfront') or self.game.get('cover', '')
+        return self.game.get(kind, '')
+
+    def _choose_media(self, kind):
+        if kind in ('boxfront', 'logo'):
+            file_filter = '图片文件 (*.png *.jpg *.jpeg *.webp *.bmp)'
+        else:
+            file_filter = '视频文件 (*.mp4 *.webm *.avi *.mkv)'
+        path, _ = QFileDialog.getOpenFileName(
+            self, '选择媒体文件', '', file_filter)
+        if not path:
+            return
+        self._media_edits[kind] = {'upload': path, 'removed': False}
+        self._refresh_media_tabs()
+
+    def _remove_media(self, kind):
+        self._media_edits[kind] = {'upload': '', 'removed': True}
+        self._refresh_media_tabs()
+
+    def _refresh_media_tabs(self):
+        if self._media_player:
+            self._media_player.stop()
+            self._media_player.deleteLater()
+            self._media_player = None
+        self._populate_media_tabs(self._media_tabs)
+
+    def edited_game(self):
+        edited = dict(self.game)
+        for key, field_input in self._field_inputs.items():
+            if isinstance(field_input, QTextEdit):
+                value = field_input.toPlainText().strip()
+            else:
+                value = field_input.text().strip()
+            edited[key] = value
+        edited['genres'] = edited.get('genre', '')
+        for kind, state in self._media_edits.items():
+            edited[f'{kind}_upload'] = state['upload']
+            edited[f'{kind}_removed'] = state['removed']
+        return edited
+
+    def _save(self):
+        edited = self.edited_game()
+        try:
+            if self.save_callback:
+                self.save_callback(edited)
+        except Exception as error:
+            QMessageBox.critical(self, '保存失败', str(error))
+            return
+        self.accept()
 
     def _image_page(self, image_path):
         label = QLabel()

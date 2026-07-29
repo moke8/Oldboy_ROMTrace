@@ -5,7 +5,15 @@ from pathlib import Path
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
-from PySide6.QtWidgets import QApplication, QLabel, QScrollArea, QTabWidget
+from PySide6.QtWidgets import (
+    QApplication,
+    QDialog,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QTabWidget,
+    QTextEdit,
+)
 
 from main import GameDetailDialog
 
@@ -53,20 +61,59 @@ class GameDetailMediaTests(unittest.TestCase):
             self.assertEqual('Logo', tabs.tabText(tabs.currentIndex()))
             dialog.close()
 
-    def test_description_has_no_background_color(self):
+    def test_description_editor_has_no_background_color(self):
         dialog = GameDetailDialog({
             'title': 'Game',
             'description': '游戏简介',
         })
 
-        description = dialog.findChild(QLabel, 'descriptionLabel')
-        scroll = dialog.findChild(QScrollArea, 'descriptionScroll')
+        description = dialog.findChild(QTextEdit, 'descriptionInput')
 
         self.assertIsNotNone(description)
-        self.assertIsNotNone(scroll)
         self.assertIn('background: transparent', description.styleSheet())
-        self.assertIn('background: transparent', scroll.styleSheet())
         dialog.close()
+
+    def test_detail_exposes_editable_fields_and_readonly_rom_path(self):
+        saved = []
+        dialog = GameDetailDialog(
+            {
+                'title': 'Game',
+                'path': '/roms/Game.nds',
+                'description': '游戏简介',
+            },
+            save_targets={
+                'pegasus': True,
+                'gamelist': False,
+                'imgs': True,
+            },
+            save_callback=saved.append,
+        )
+
+        self.assertFalse(
+            dialog.findChild(QLineEdit, 'titleInput').isReadOnly())
+        self.assertFalse(
+            dialog.findChild(QTextEdit, 'descriptionInput').isReadOnly())
+        self.assertTrue(
+            dialog.findChild(QLineEdit, 'romPathInput').isReadOnly())
+        targets = dialog.findChild(QLabel, 'saveTargetsLabel').text()
+        self.assertIn('Pegasus', targets)
+        self.assertIn('Imgs', targets)
+        self.assertNotIn('gamelist.xml', targets)
+        dialog.close()
+
+    def test_remove_video_and_save_calls_callback(self):
+        saved = []
+        dialog = GameDetailDialog(
+            {'title': 'Game', 'video': '/media/Game/video.mp4'},
+            save_targets={'pegasus': True, 'gamelist': False, 'imgs': False},
+            save_callback=saved.append,
+        )
+
+        dialog.findChild(QPushButton, 'removeVideoButton').click()
+        dialog.findChild(QPushButton, 'saveGameButton').click()
+
+        self.assertTrue(saved[0]['video_removed'])
+        self.assertEqual(QDialog.Accepted, dialog.result())
 
 
 if __name__ == '__main__':
