@@ -20,6 +20,11 @@ def _emit_error(log, label, reason):
         log(f'[翻译] {label}: {reason}')
 
 
+def _redact(value, secret):
+    text = str(value)
+    return text.replace(secret, '***') if secret else text
+
+
 def _http_error_reason(error, api_key):
     try:
         data = json.loads(error.read().decode())
@@ -79,13 +84,20 @@ def translate(text, target_lang, config, log=None):
         with urlopen(request, timeout=30) as response:
             data = json.loads(response.read().decode())
         content = data['choices'][0]['message']['content'].strip()
-        return content or text
+        if not content:
+            _emit_error(log, model_label, '接口未返回译文。')
+            return text
+        return content
     except HTTPError as error:
         _emit_error(
             log, model_label, _http_error_reason(error, api_key))
         return text
     except URLError as error:
-        _emit_error(log, model_label, f'网络连接失败：{error.reason}。')
+        if isinstance(error.reason, TimeoutError):
+            _emit_error(log, model_label, '请求超时。')
+        else:
+            reason = _redact(error.reason, api_key)
+            _emit_error(log, model_label, f'网络连接失败：{reason}。')
         return text
     except TimeoutError:
         _emit_error(log, model_label, '请求超时。')

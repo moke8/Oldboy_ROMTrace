@@ -55,6 +55,32 @@ class GoogleTranslateTests(unittest.TestCase):
             '[翻译] Google 翻译: 网络连接失败：connection refused。',
         ])
 
+    def test_empty_response_logs_missing_translation(self):
+        messages = []
+        with patch(
+                'translate_google.urlopen',
+                return_value=_FakeResponse([])):
+            result = translate_google.translate(
+                'Original', 'zh-CN', log=messages.append)
+
+        self.assertEqual(result, 'Original')
+        self.assertEqual(messages, [
+            '[翻译] Google 翻译: 接口未返回译文。',
+        ])
+
+    def test_invalid_response_does_not_produce_garbage_translation(self):
+        messages = []
+        with patch(
+                'translate_google.urlopen',
+                return_value=_FakeResponse([{'error': 'x'}])):
+            result = translate_google.translate(
+                'Original', 'zh-CN', log=messages.append)
+
+        self.assertEqual(result, 'Original')
+        self.assertEqual(messages, [
+            '[翻译] Google 翻译: 接口响应格式无效。',
+        ])
+
 
 class DeepSeekTranslateTests(unittest.TestCase):
     def test_model_not_found_logs_readable_reason_without_key(self):
@@ -118,6 +144,55 @@ class DeepSeekTranslateTests(unittest.TestCase):
         self.assertEqual(result, 'Original')
         self.assertEqual(messages, [
             '[翻译] model-name: 网络连接失败：connection refused。',
+        ])
+
+    def test_wrapped_timeout_is_logged_as_timeout(self):
+        messages = []
+        config = {
+            'base_url': 'https://api.example.com/v1',
+            'model': 'model-name',
+            'api_key': 'key',
+        }
+        with patch(
+                'translate_deepseek.urlopen',
+                side_effect=URLError(TimeoutError('timed out'))):
+            translate_deepseek.translate(
+                'Original', 'zh-CN', config, log=messages.append)
+
+        self.assertEqual(messages, ['[翻译] model-name: 请求超时。'])
+
+    def test_network_error_redacts_key_from_reason(self):
+        messages = []
+        config = {
+            'base_url': 'https://api.example.com/v1',
+            'model': 'model-name',
+            'api_key': 'leak-me',
+        }
+        with patch(
+                'translate_deepseek.urlopen',
+                side_effect=URLError('connection failed leak-me')):
+            translate_deepseek.translate(
+                'Original', 'zh-CN', config, log=messages.append)
+
+        self.assertEqual(messages, [
+            '[翻译] model-name: 网络连接失败：connection failed ***。',
+        ])
+
+    def test_empty_ai_content_logs_missing_translation(self):
+        messages = []
+        config = {
+            'base_url': 'https://api.example.com/v1',
+            'model': 'model-name',
+            'api_key': 'key',
+        }
+        with patch('translate_deepseek.urlopen', return_value=_FakeResponse({
+                'choices': [{'message': {'content': '  '}}]})):
+            result = translate_deepseek.translate(
+                'Original', 'zh-CN', config, log=messages.append)
+
+        self.assertEqual(result, 'Original')
+        self.assertEqual(messages, [
+            '[翻译] model-name: 接口未返回译文。',
         ])
 
     def test_builds_openai_compatible_request(self):
