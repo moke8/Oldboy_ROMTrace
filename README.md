@@ -35,7 +35,7 @@
 | Game Boy Advance | `.gba` `.agb` `.mb` | ROM Header Game Code → No-Intro 数据库查表获取完整英文名 |
 | Nintendo DS | `.nds` | ROM Header Game Code → No-Intro 英文名，多语言横幅标题与图标解码 |
 | Nintendo 3DS | `.3ds` `.cia` | SMDH 标题解析 |
-| PlayStation 1 | `.chd` `.pbp` `.bin/.cue` | SYSTEM.CNF 序列号提取 |
+| PlayStation 1 | `.chd` `.pbp` `.bin/.cue` | SYSTEM.CNF 序列号 → 内置字典标准英文名，未知序列号保留原始标题 |
 | PlayStation Portable | `.iso` `.cso` `.pbp` | PARAM.SFO 解析（支持 CSO 解压） |
 | Nintendo GameCube | `.iso` `.gcm` | DOL/FST 头部解析 |
 | Nintendo Wii | `.iso` `.wbfs` | 光盘头部标题 |
@@ -50,10 +50,10 @@
 - **分类媒体目录** — 正面封面和 Logo 分别保存为 `media/<ROM文件名>/boxfront.<原格式>` 与 `logo.<原格式>`，视频保留独立索引；默认展示优先使用 boxFront，缺失时回退到 Logo
 - **游戏详情编辑** — 详情弹窗可编辑元数据，上传、替换或移除封面、Logo 与视频，并按现有 Pegasus、gamelist 和 Anbernic 配置保存
 - **Anbernic 封面兼容** — 可额外生成 `Imgs/<ROM文件名>.<原格式>`，副本不写入 Pegasus 或 `gamelist.xml`，关闭兼容选项后也不会自动删除
-- **完整刮削日志** — 启动时输出脱敏后的全部配置，执行中按文件扫描、游戏解析、游戏搜索、图片下载、图片整理、索引写入等业务前缀记录过程与统计
+- **完整刮削日志** — 启动时输出脱敏后的全部配置，执行中按文件扫描、游戏解析、游戏搜索、图片下载、翻译、图片整理、索引写入等业务前缀记录过程与统计；翻译失败会记录模型不可用、权限不足、网络、超时、配置缺失或响应异常等中文原因
 - **在线元数据补全** — 支持 TheGamesDB、IGDB、ScreenScraper、Wikipedia 四种数据源
 - **手动搜索** — 右键游戏卡片可手动输入关键词搜索，支持一键从 ROM 提取英文名
-- **多语言支持** — 16 种语言可选（含简繁中文智能识别），支持 Google 翻译和 OpenAI 兼容 AI 翻译
+- **多语言支持** — 16 种语言可选（含简繁中文智能识别），翻译可选择关闭、Google 翻译或 OpenAI 兼容 AI 翻译；失败时保留原文，不中断批量刮削
 - **视频支持** — 刮削时通过 yt-dlp 下载最接近 480p 的视频到 `media/<ROM文件名>/video.<格式>`，详情页直接播放本地文件
 - **多线程处理** — 可配置线程数（1~16），并行处理加速批量刮削
 - **元数据输出** — 生成 `metadata.pegasus.txt`（Pegasus Frontend）和 `gamelist.xml`（Anbernic / EmulationStation）
@@ -61,6 +61,14 @@
 - **图形界面** — PySide6 构建，游戏画廊展示、右键菜单操作、日志实时输出
 
 ## 使用方法
+
+### 翻译配置
+
+在“刮削设置”中可选择“关闭”“Google 翻译”或“AI 翻译”。Google 翻译无需凭据；AI 翻译使用 OpenAI 兼容的 `chat/completions` 接口，需要配置中转站、模型和 Key。
+
+中转站支持填写站点根地址、以 `/v1` 结尾的地址或完整 `/chat/completions` 地址。程序会自动补全请求路径，并在切换翻译方式时保存、回填各 Provider 的已有配置。
+
+翻译失败时任务继续执行并保留原文。日志会显示脱敏后的中文原因，例如模型不存在、当前 Key 无权访问、网络连接失败、请求超时或响应格式无效，但不会输出 Key 或 Authorization 请求头。
 
 ### 直接运行（Python 3.8+）
 
@@ -104,6 +112,8 @@ platform_switch.py       # Switch 平台（XCI/NCA 解密）
 
 nds_game_db.py           # NDS Game Code → 游戏名映射表（自动生成）
 build_nds_db.py          # 从 No-Intro DAT 生成 NDS 映射表
+ps1_game_db.py           # PS1 序列号 → 标准英文名映射表（自动生成）
+build_ps1_db.py          # 从 Sony Serial Number Database 生成 PS1 映射表
 
 datasource_thegamesdb.py # TheGamesDB 数据源
 datasource_igdb.py       # IGDB (Twitch) 数据源
