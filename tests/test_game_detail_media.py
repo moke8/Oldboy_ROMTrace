@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTabWidget,
     QTextEdit,
+    QToolButton,
 )
 
 from main import GameDetailDialog
@@ -55,7 +56,7 @@ class GameDetailMediaTests(unittest.TestCase):
 
             tabs = dialog.findChild(QTabWidget, 'mediaTabs')
 
-            self.assertEqual(['Logo'], [
+            self.assertEqual(['封面', 'Logo', '视频'], [
                 tabs.tabText(index) for index in range(tabs.count())
             ])
             self.assertEqual('Logo', tabs.tabText(tabs.currentIndex()))
@@ -109,11 +110,32 @@ class GameDetailMediaTests(unittest.TestCase):
             save_callback=saved.append,
         )
 
-        dialog.findChild(QPushButton, 'removeVideoButton').click()
+        remove_video = dialog.findChild(QToolButton, 'removeVideoButton')
+        self.assertTrue(remove_video.isEnabled())
+        remove_video.click()
         dialog.findChild(QPushButton, 'saveGameButton').click()
 
         self.assertTrue(saved[0]['video_removed'])
         self.assertEqual(QDialog.Accepted, dialog.result())
+
+    def test_all_media_tabs_have_overlay_icon_actions(self):
+        dialog = GameDetailDialog({'title': 'Game'})
+        tabs = dialog.findChild(QTabWidget, 'mediaTabs')
+
+        self.assertEqual(['封面', 'Logo', '视频'], [
+            tabs.tabText(index) for index in range(tabs.count())
+        ])
+        for kind in ('Boxfront', 'Logo', 'Video'):
+            edit = dialog.findChild(QToolButton, f'edit{kind}Button')
+            remove = dialog.findChild(QToolButton, f'remove{kind}Button')
+            self.assertIsNotNone(edit)
+            self.assertIsNotNone(remove)
+            self.assertFalse(edit.icon().isNull())
+            self.assertFalse(remove.icon().isNull())
+            self.assertFalse(remove.isEnabled())
+        self.assertIsNone(
+            dialog.findChild(QPushButton, 'chooseBoxfrontButton'))
+        dialog.close()
 
 
 if __name__ == '__main__':

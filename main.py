@@ -20,7 +20,7 @@ try:
         QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
         QTabWidget, QLabel, QLineEdit, QPushButton, QCheckBox, QComboBox,
         QSpinBox, QTextEdit, QScrollArea, QFrame, QFileDialog, QMessageBox,
-        QLayout, QDialog, QMenu, QStackedWidget,
+        QLayout, QDialog, QMenu, QStackedWidget, QGridLayout, QToolButton,
     )
     from PySide6.QtCore import (
         Qt, QSize, Signal, QThread, QPropertyAnimation, QEasingCurve,
@@ -82,6 +82,31 @@ def create_app_icon(size=64):
     trace.lineTo(42, 37)
     painter.drawPath(trace)
 
+    painter.end()
+    return QIcon(pixmap)
+
+
+def create_media_action_icon(action, color='#c9d1d9'):
+    pixmap = QPixmap(20, 20)
+    pixmap.fill(Qt.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.Antialiasing)
+    pen = QPen(QColor(color), 1.8, Qt.SolidLine,
+               Qt.RoundCap, Qt.RoundJoin)
+    painter.setPen(pen)
+    painter.setBrush(Qt.NoBrush)
+    if action == 'edit':
+        painter.drawLine(5, 14, 13, 6)
+        painter.drawLine(12, 5, 15, 8)
+        painter.drawLine(4, 16, 7, 15)
+        painter.drawLine(4, 16, 5, 13)
+    elif action == 'delete':
+        painter.drawLine(6, 6, 7, 16)
+        painter.drawLine(14, 6, 13, 16)
+        painter.drawLine(5, 5, 15, 5)
+        painter.drawLine(8, 3, 12, 3)
+        painter.drawLine(9, 8, 9, 14)
+        painter.drawLine(11, 8, 11, 14)
     painter.end()
     return QIcon(pixmap)
 
@@ -631,24 +656,6 @@ class GameDetailDialog(QDialog):
         media_column = QVBoxLayout()
         self._media_tabs = self._build_media_tabs()
         media_column.addWidget(self._media_tabs)
-        for label, kind in (
-                ('封面', 'boxfront'), ('Logo', 'logo'), ('视频', 'video')):
-            row = QHBoxLayout()
-            choose = QPushButton(f'选择{label}')
-            choose.setObjectName(
-                f"choose{kind[0].upper()}{kind[1:]}Button")
-            choose.clicked.connect(
-                lambda _checked=False, media_kind=kind:
-                self._choose_media(media_kind))
-            remove = QPushButton(f'移除{label}')
-            remove.setObjectName(
-                f"remove{kind[0].upper()}{kind[1:]}Button")
-            remove.clicked.connect(
-                lambda _checked=False, media_kind=kind:
-                self._remove_media(media_kind))
-            row.addWidget(choose)
-            row.addWidget(remove)
-            media_column.addLayout(row)
         media_column.addStretch()
         layout.addLayout(media_column)
 
@@ -745,25 +752,93 @@ class GameDetailDialog(QDialog):
             tabs.removeTab(0)
             widget.deleteLater()
         self._video_tab_index = -1
+        first_available = None
+        media_defs = (
+            ('封面', 'boxfront'),
+            ('Logo', 'logo'),
+            ('视频', 'video'),
+        )
+        for index, (label, kind) in enumerate(media_defs):
+            media = self._current_media(kind)
+            available = bool(
+                media and (kind == 'video' or Path(media).exists()))
+            if available and first_available is None:
+                first_available = index
+            if kind == 'video' and available:
+                content = self._video_page(media)
+            elif kind != 'video' and available:
+                content = self._image_page(media)
+            else:
+                content = self._media_placeholder(kind)
+            tabs.addTab(
+                self._media_page(kind, content, available), label)
+        self._video_tab_index = 2
+        tabs.setCurrentIndex(first_available or 0)
 
-        boxfront = self._current_media('boxfront')
-        logo = self._current_media('logo')
-        if boxfront and Path(boxfront).exists():
-            tabs.addTab(self._image_page(boxfront), '封面')
-        if logo and Path(logo).exists() and logo != boxfront:
-            tabs.addTab(self._image_page(logo), 'Logo')
+    def _media_placeholder(self, kind):
+        placeholder = QLabel('暂无视频' if kind == 'video' else '\U0001f3ae')
+        placeholder.setAlignment(Qt.AlignCenter)
+        placeholder.setStyleSheet(
+            'background: #0d1117; font-size: 42px; color: #484f58;')
+        return placeholder
 
-        video = self._current_media('video')
-        if video:
-            self._video_tab_index = tabs.addTab(
-                self._video_page(video), '视频')
+    def _media_page(self, kind, content, has_media):
+        page = QWidget()
+        layout = QGridLayout(page)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(content, 0, 0)
 
-        if tabs.count() == 0:
-            placeholder = QLabel("\U0001f3ae")
-            placeholder.setAlignment(Qt.AlignCenter)
-            placeholder.setStyleSheet(
-                'background: #0d1117; font-size: 48px; color: #484f58;')
-            tabs.addTab(placeholder, '媒体')
+        actions = QWidget(page)
+        actions.setStyleSheet('background: transparent;')
+        action_layout = QHBoxLayout(actions)
+        action_layout.setContentsMargins(0, 0, 8, 8)
+        action_layout.setSpacing(6)
+
+        name = f'{kind[0].upper()}{kind[1:]}'
+        edit = QToolButton(actions)
+        edit.setObjectName(f'edit{name}Button')
+        edit.setAccessibleName(f'选择或替换{kind}')
+        edit.setToolTip('选择或替换')
+        edit.setIcon(create_media_action_icon('edit'))
+        edit.setIconSize(QSize(20, 20))
+        edit.setFixedSize(28, 28)
+        edit.clicked.connect(
+            lambda _checked=False, media_kind=kind:
+            self._choose_media(media_kind))
+
+        remove = QToolButton(actions)
+        remove.setObjectName(f'remove{name}Button')
+        remove.setAccessibleName(f'移除{kind}')
+        remove.setToolTip('移除')
+        remove.setIcon(create_media_action_icon('delete', '#ff7b72'))
+        remove.setIconSize(QSize(20, 20))
+        remove.setFixedSize(28, 28)
+        remove.setEnabled(has_media)
+        remove.clicked.connect(
+            lambda _checked=False, media_kind=kind:
+            self._remove_media(media_kind))
+
+        button_style = (
+            'QToolButton {'
+            ' background: rgba(22, 27, 34, 190);'
+            ' border: 1px solid rgba(139, 148, 158, 90);'
+            ' border-radius: 7px;'
+            '}'
+            'QToolButton:hover {'
+            ' background: rgba(48, 54, 61, 235);'
+            ' border-color: #8b949e;'
+            '}'
+            'QToolButton:disabled {'
+            ' background: rgba(22, 27, 34, 100);'
+            ' border-color: rgba(72, 79, 88, 80);'
+            '}'
+        )
+        edit.setStyleSheet(button_style)
+        remove.setStyleSheet(button_style)
+        action_layout.addWidget(edit)
+        action_layout.addWidget(remove)
+        layout.addWidget(actions, 0, 0, Qt.AlignRight | Qt.AlignBottom)
+        return page
 
     def _current_media(self, kind):
         state = self._media_edits[kind]
@@ -796,7 +871,11 @@ class GameDetailDialog(QDialog):
             self._media_player.stop()
             self._media_player.deleteLater()
             self._media_player = None
+        current_index = self._media_tabs.currentIndex()
+        self._media_tabs.blockSignals(True)
         self._populate_media_tabs(self._media_tabs)
+        self._media_tabs.setCurrentIndex(current_index)
+        self._media_tabs.blockSignals(False)
 
     def edited_game(self):
         edited = dict(self.game)
