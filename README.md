@@ -53,7 +53,7 @@
 - **完整刮削日志** — 启动时输出脱敏后的全部配置，执行中按文件扫描、游戏解析、游戏搜索、图片下载、图片整理、索引写入等业务前缀记录过程与统计
 - **在线元数据补全** — 支持 TheGamesDB、IGDB、ScreenScraper、Wikipedia 四种数据源
 - **手动搜索** — 右键游戏卡片可手动输入关键词搜索，支持一键从 ROM 提取英文名
-- **多语言支持** — 16 种语言可选（含简繁中文智能识别），支持 Google Translate 翻译
+- **多语言支持** — 16 种语言可选（含简繁中文智能识别），支持 Google 翻译和 OpenAI 兼容 AI 翻译
 - **视频支持** — 刮削时通过 yt-dlp 下载最接近 480p 的视频到 `media/<ROM文件名>/video.<格式>`，详情页直接播放本地文件
 - **多线程处理** — 可配置线程数（1~16），并行处理加速批量刮削
 - **元数据输出** — 生成 `metadata.pegasus.txt`（Pegasus Frontend）和 `gamelist.xml`（Anbernic / EmulationStation）
@@ -87,7 +87,10 @@ main.py                  # UI 入口（MainWindow, GameCard, Dialogs, Nav）
 config.py                # 配置管理（JSON 读写, 语言列表, 路径常量）
 scrape.py                # 刮削主调度（batch_scrape, ExtractWorker, 元数据写入）
 platform_base.py         # 平台基类（BasePlatformTab, collect_game_files, 展柜解析）
-datasource_base.py       # 数据源基类（注册表, 网络工具, 代理, 翻译）
+datasource_base.py       # 数据源基类（注册表, 网络工具, 代理）
+translate_base.py        # 翻译统一调度器
+translate_google.py      # Google 翻译函数
+translate_deepseek.py    # OpenAI 兼容 AI 翻译函数
 
 platform_gba.py          # GBA 平台（Game Code 查表）
 platform_nds.py          # NDS 平台（多语言标题 + 图标解码）
