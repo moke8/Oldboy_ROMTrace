@@ -137,6 +137,24 @@ class GameDetailMediaTests(unittest.TestCase):
             dialog.findChild(QPushButton, 'chooseBoxfrontButton'))
         dialog.close()
 
+    def test_media_actions_use_standard_svg_resources(self):
+        upload = Path('assets/icons/upload.svg')
+        trash = Path('assets/icons/trash.svg')
+
+        self.assertTrue(upload.exists())
+        self.assertTrue(trash.exists())
+        self.assertIn('<svg', upload.read_text(encoding='utf-8'))
+        self.assertIn('<svg', trash.read_text(encoding='utf-8'))
+
+        dialog = GameDetailDialog({'title': 'Game'})
+        edit = dialog.findChild(QToolButton, 'editBoxfrontButton')
+        remove = dialog.findChild(QToolButton, 'removeBoxfrontButton')
+        self.assertEqual('选择或替换', edit.toolTip())
+        self.assertEqual('移除', remove.toolTip())
+        self.assertFalse(edit.icon().isNull())
+        self.assertFalse(remove.icon().isNull())
+        dialog.close()
+
 
 if __name__ == '__main__':
     unittest.main()

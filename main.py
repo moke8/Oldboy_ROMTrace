@@ -86,29 +86,10 @@ def create_app_icon(size=64):
     return QIcon(pixmap)
 
 
-def create_media_action_icon(action, color='#c9d1d9'):
-    pixmap = QPixmap(20, 20)
-    pixmap.fill(Qt.transparent)
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.Antialiasing)
-    pen = QPen(QColor(color), 1.8, Qt.SolidLine,
-               Qt.RoundCap, Qt.RoundJoin)
-    painter.setPen(pen)
-    painter.setBrush(Qt.NoBrush)
-    if action == 'edit':
-        painter.drawLine(5, 14, 13, 6)
-        painter.drawLine(12, 5, 15, 8)
-        painter.drawLine(4, 16, 7, 15)
-        painter.drawLine(4, 16, 5, 13)
-    elif action == 'delete':
-        painter.drawLine(6, 6, 7, 16)
-        painter.drawLine(14, 6, 13, 16)
-        painter.drawLine(5, 5, 15, 5)
-        painter.drawLine(8, 3, 12, 3)
-        painter.drawLine(9, 8, 9, 14)
-        painter.drawLine(11, 8, 11, 14)
-    painter.end()
-    return QIcon(pixmap)
+MEDIA_UPLOAD_ICON = str(
+    Path(__file__).resolve().parent / 'assets' / 'icons' / 'upload.svg')
+MEDIA_TRASH_ICON = str(
+    Path(__file__).resolve().parent / 'assets' / 'icons' / 'trash.svg')
 
 STYLESHEET = """
 QMainWindow { background-color: #0d1117; }
@@ -799,7 +780,7 @@ class GameDetailDialog(QDialog):
         edit.setObjectName(f'edit{name}Button')
         edit.setAccessibleName(f'选择或替换{kind}')
         edit.setToolTip('选择或替换')
-        edit.setIcon(create_media_action_icon('edit'))
+        edit.setIcon(QIcon(MEDIA_UPLOAD_ICON))
         edit.setIconSize(QSize(20, 20))
         edit.setFixedSize(28, 28)
         edit.clicked.connect(
@@ -810,7 +791,7 @@ class GameDetailDialog(QDialog):
         remove.setObjectName(f'remove{name}Button')
         remove.setAccessibleName(f'移除{kind}')
         remove.setToolTip('移除')
-        remove.setIcon(create_media_action_icon('delete', '#ff7b72'))
+        remove.setIcon(QIcon(MEDIA_TRASH_ICON))
         remove.setIconSize(QSize(20, 20))
         remove.setFixedSize(28, 28)
         remove.setEnabled(has_media)
