@@ -110,18 +110,20 @@ platform_wii.py          # Wii 平台
 platform_dc.py           # Dreamcast 平台
 platform_switch.py       # Switch 平台（XCI/NCA 解密）
 
-nds_game_db.py           # NDS Game Code → 游戏名映射表（自动生成）
+game_gba_db.py           # GBA Game Code → 游戏名映射表（自动生成）
+build_gba_db.py          # 从 No-Intro DAT 生成 GBA 映射表
+game_nds_db.py           # NDS Game Code → 游戏名映射表（自动生成）
 build_nds_db.py          # 从 No-Intro DAT 生成 NDS 映射表
-ps1_game_db.py           # PS1 序列号 → 标准英文名映射表（自动生成）
-build_ps1_db.py          # 从 Sony Serial Number Database 生成 PS1 映射表
+game_ps1_db.py           # PS1 序列号 → 标准英文名映射表（自动生成）
+build_ps1_db.py          # 从 DuckStation 数据库生成 PS1 映射表
+game_psp_db.py           # PSP DISC_ID → 标准英文名映射表（自动生成）
+build_psp_db.py          # 从 Redump 列表生成 PSP 映射表
 
 datasource_thegamesdb.py # TheGamesDB 数据源
 datasource_igdb.py       # IGDB (Twitch) 数据源
 datasource_screenscraper.py # ScreenScraper 数据源
 datasource_wikipedia.py  # Wikipedia 数据源
 
-gba_game_db.py           # GBA Game Code → 游戏名映射表（自动生成）
-build_gba_db.py          # 从 No-Intro DAT 生成映射表的工具脚本
 ```
 
 ### 架构原则
