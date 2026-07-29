@@ -7,7 +7,7 @@ from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 from datasource_base import set_proxy, get_datasource, _http_get_bytes
-from translate_google import translate as google_translate
+from translate_base import translate as translate_text
 
 
 # ===== 工具函数 =====
@@ -124,7 +124,8 @@ def _safe_proxy_display(proxy):
 def _log_scrape_configuration(
     log, *, game_dir, platform_name, file_extensions,
     generate_meta, generate_gamelist, online_mode, api_key,
-    datasource_name, lang_code, google_lang, translate, video,
+    datasource_name, lang_code, google_lang, translate_provider,
+    translate_configs, video,
     filename_as_title, thread_count, scrape_mode, target_files,
     proxy, override_search_name, normalize_media_paths,
     anbernic_compatible,
@@ -137,6 +138,11 @@ def _log_scrape_configuration(
     formats = ', '.join(file_extensions)
     credential = '已配置' if api_key else '未配置'
     translation_target = google_lang or '未设置'
+    provider_display = {
+        'off': '关闭',
+        'google': 'Google 翻译',
+        'ai': 'AI 翻译',
+    }.get(translate_provider, '关闭')
     search_override = override_search_name or '未设置'
     lines = [
         f'平台: {platform_name}',
@@ -146,7 +152,7 @@ def _log_scrape_configuration(
         f'文件格式: {formats}',
         (f'在线补全: {_enabled_text(online_mode)} | '
          f'数据源: {datasource_display} | 凭据: {credential}'),
-        (f'解析语言: {lang_code} | 翻译: {_enabled_text(translate)} | '
+        (f'解析语言: {lang_code} | 翻译: {provider_display} | '
          f'翻译目标: {translation_target}'),
         (f'视频: {_enabled_text(video)} | '
          f'文件名作为标题: {_enabled_text(filename_as_title)}'),
@@ -158,6 +164,11 @@ def _log_scrape_configuration(
         f'代理: {_safe_proxy_display(proxy)}',
         f'手动搜索词: {search_override}',
     ]
+    if translate_provider == 'ai':
+        ai_config = (translate_configs or {}).get('ai', {})
+        complete = all(ai_config.get(key)
+                       for key in ('base_url', 'model', 'api_key'))
+        lines.append(f"AI 配置: {'完整' if complete else '不完整'}")
     log('[刮削配置] ========================================')
     for line in lines:
         log(f'[刮削配置] {line}')
@@ -652,7 +663,8 @@ def batch_scrape(
     collection_defaults, extract_kwargs=None,
     generate_meta=False, generate_gamelist=False,
     online_mode=False, api_key=None, datasource_name='thegamesdb',
-    lang_code='en', google_lang='', translate=False,
+    lang_code='en', google_lang='', translate_provider='off',
+    translate_configs=None,
     video=False, filename_as_title=False,
     thread_count=4, scrape_mode='refresh', target_files=None,
     proxy='', override_search_name='',
@@ -675,7 +687,8 @@ def batch_scrape(
         datasource_name=datasource_name,
         lang_code=lang_code,
         google_lang=google_lang,
-        translate=translate,
+        translate_provider=translate_provider,
+        translate_configs=translate_configs,
         video=video,
         filename_as_title=filename_as_title,
         thread_count=thread_count,
@@ -823,15 +836,16 @@ def batch_scrape(
                             )
                         else:
                             log(f"[图片下载] logo 下载失败: {logo_url}")
-                    if translate and google_lang:
+                    if translate_provider != 'off' and google_lang:
                         for k in ('description', 'genres'):
                             if online.get(k):
                                 log(
                                     f"[翻译] 开始翻译 {k}: {display_name} -> "
                                     f"{google_lang}"
                                 )
-                                translated_value = google_translate(
-                                    online[k], google_lang)
+                                translated_value = translate_text(
+                                    online[k], google_lang,
+                                    translate_provider, translate_configs)
                                 if translated_value:
                                     online[k] = translated_value
                                     log(
@@ -858,14 +872,17 @@ def batch_scrape(
                 else:
                     log(f"[游戏搜索] 未找到匹配: {search_name}")
 
-            if (translate and google_lang and google_lang.startswith('zh')
+            if (translate_provider != 'off' and google_lang
+                    and google_lang.startswith('zh')
                     and not filename_as_title):
                 if not _has_cjk(info['title']):
                     log(
                         f"[翻译] 开始翻译游戏标题: {info['title']} -> "
                         f"{google_lang}"
                     )
-                    translated = google_translate(info['title'], google_lang)
+                    translated = translate_text(
+                        info['title'], google_lang,
+                        translate_provider, translate_configs)
                     if translated and translated != info['title']:
                         info['title'] = translated
                         log(f"[翻译] 游戏标题翻译完成: {translated}")

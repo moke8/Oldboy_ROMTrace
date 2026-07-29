@@ -1329,6 +1329,9 @@ class MainWindow(QMainWindow):
                 self.lang_combo.setCurrentIndex(idx)
         if 'thread_count' in cfg:
             self.thread_spin.setValue(cfg['thread_count'])
+        if 'translate_provider' not in cfg and 'translate' in cfg:
+            cfg['translate_provider'] = (
+                'google' if cfg['translate'] else 'off')
         scrape_keys = ('online_mode', 'scrape_mode', 'video', 'translate',
                        'translate_provider', 'translate_configs',
                        'filename_as_title', 'normalize_media_paths',

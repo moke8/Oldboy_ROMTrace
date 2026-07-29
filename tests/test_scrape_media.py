@@ -429,7 +429,7 @@ class BatchScrapeMediaTests(unittest.TestCase):
                     'game_code': 'IPGJ',
                 }
 
-            with patch('scrape.google_translate') as translate_mock:
+            with patch('scrape.translate_text') as translate_mock:
                 batch_scrape(
                     game_dir=root,
                     extract_fn=extract_fn,
@@ -440,7 +440,8 @@ class BatchScrapeMediaTests(unittest.TestCase):
                     generate_meta=True,
                     online_mode=False,
                     google_lang='zh-CN',
-                    translate=True,
+                    translate_provider='google',
+                    translate_configs={'google': {}},
                     filename_as_title=True,
                     normalize_media_paths=False,
                     thread_count=1,
@@ -454,6 +455,74 @@ class BatchScrapeMediaTests(unittest.TestCase):
                 'game: 口袋妖怪 魂银 493版',
                 (root / 'metadata.pegasus.txt').read_text(encoding='utf-8'),
             )
+
+    def test_title_translation_uses_selected_provider(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            rom_path = root / 'Game.nds'
+            rom_path.write_bytes(b'rom')
+
+            def extract_fn(*_args, **_kwargs):
+                return {
+                    'title': 'English Game',
+                    'filename': rom_path.name,
+                    'game_code': 'TEST',
+                }
+
+            configs = {'ai': {
+                'base_url': 'https://relay.example.com/v1',
+                'model': 'deepseek-chat',
+                'api_key': 'secret',
+            }}
+            with patch('scrape.translate_text', return_value='中文游戏') as mock:
+                batch_scrape(
+                    game_dir=root,
+                    extract_fn=extract_fn,
+                    file_extensions=('nds',),
+                    platform_id=8,
+                    platform_name='Nintendo DS',
+                    collection_defaults={},
+                    generate_meta=True,
+                    online_mode=False,
+                    google_lang='zh-CN',
+                    translate_provider='ai',
+                    translate_configs=configs,
+                    normalize_media_paths=False,
+                    thread_count=1,
+                )
+
+            mock.assert_called_once_with(
+                'English Game', 'zh-CN', 'ai', configs)
+            self.assertIn(
+                'game: 中文游戏',
+                (root / 'metadata.pegasus.txt').read_text(encoding='utf-8'),
+            )
+
+    def test_off_provider_skips_translation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            rom_path = root / 'Game.nds'
+            rom_path.write_bytes(b'rom')
+
+            def extract_fn(*_args, **_kwargs):
+                return {'title': 'English Game', 'filename': rom_path.name}
+
+            with patch('scrape.translate_text') as mock:
+                batch_scrape(
+                    game_dir=root,
+                    extract_fn=extract_fn,
+                    file_extensions=('nds',),
+                    platform_id=8,
+                    platform_name='Nintendo DS',
+                    collection_defaults={},
+                    online_mode=False,
+                    google_lang='zh-CN',
+                    translate_provider='off',
+                    normalize_media_paths=False,
+                    thread_count=1,
+                )
+
+            mock.assert_not_called()
 
     def test_complement_migrates_before_skipping_complete_game(self):
         with tempfile.TemporaryDirectory() as temp_dir:

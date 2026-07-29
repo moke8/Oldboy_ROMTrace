@@ -26,7 +26,12 @@ class ScrapeConfigurationLogTests(unittest.TestCase):
                 datasource_name='thegamesdb',
                 lang_code='zh',
                 google_lang='zh-CN',
-                translate=True,
+                translate_provider='ai',
+                translate_configs={'ai': {
+                    'base_url': 'https://relay.example.com/v1',
+                    'model': 'deepseek-chat',
+                    'api_key': 'translation-secret-key',
+                }},
                 video=True,
                 filename_as_title=False,
                 thread_count=6,
@@ -45,7 +50,8 @@ class ScrapeConfigurationLogTests(unittest.TestCase):
             self.assertIn('在线补全: 开启', text)
             self.assertIn('数据源: TheGamesDB', text)
             self.assertIn('凭据: 已配置', text)
-            self.assertIn('翻译: 开启', text)
+            self.assertIn('翻译: AI 翻译', text)
+            self.assertIn('AI 配置: 完整', text)
             self.assertIn('视频: 开启', text)
             self.assertIn('线程: 6', text)
             self.assertIn('Pegasus: 开启', text)
@@ -55,6 +61,7 @@ class ScrapeConfigurationLogTests(unittest.TestCase):
             self.assertIn('代理: http://127.0.0.1:7890', text)
             self.assertIn('[文件扫描] 未找到游戏文件', text)
             self.assertNotIn('super-secret-key', text)
+            self.assertNotIn('translation-secret-key', text)
             self.assertNotIn('user:password', text)
 
 
