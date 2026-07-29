@@ -40,6 +40,27 @@ class NDSDatabaseBuilderTests(unittest.TestCase):
         self.assertLess(generated.index("'AYDJ'"), generated.index("'AYEJ'"))
         self.assertIn("Director\\'s Cut", generated)
 
+    def test_normalizes_names_written_to_database(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / 'nds_game_db.py'
+            write_database({
+                'A001': ('Pac-Pix (Europe) (En,Fr,De,Es,It) '
+                         '(Demo) (Kiosk)'),
+                'A002': 'Game Title (USA)   ',
+                'A003': 'Game (Subtitle) - Edition',
+                'A004': 'Plain Game   ',
+                'A005': 'Collection (aka Game (Best))',
+                'A006': 'Memories (aka Edition))',
+            }, output, 'fixture.dat')
+            generated = output.read_text(encoding='utf-8')
+
+        self.assertIn("'A001': 'Pac-Pix'", generated)
+        self.assertIn("'A002': 'Game Title'", generated)
+        self.assertIn("'A003': 'Game (Subtitle) - Edition'", generated)
+        self.assertIn("'A004': 'Plain Game'", generated)
+        self.assertIn("'A005': 'Collection'", generated)
+        self.assertIn("'A006': 'Memories'", generated)
+
 
 if __name__ == '__main__':
     unittest.main()

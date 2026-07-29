@@ -3,6 +3,8 @@
 
 import xml.etree.ElementTree as ET
 
+from build_db_utils import clean_db_title
+
 INPUT = "Nintendo - Game Boy Advance.xml"
 OUTPUT = "gba_game_db.py"
 
@@ -32,7 +34,9 @@ with open(OUTPUT, 'w', encoding='utf-8') as out:
     out.write(f'# 条目数: {len(serial_map)}\n\n')
     out.write('GBA_GAME_DB = {\n')
     for serial, name in sorted(serial_map.items()):
-        escaped = name.replace('\\', '\\\\').replace("'", "\\'")
+        escaped = clean_db_title(name).replace('\\', '\\\\').replace(
+            "'", "\\'"
+        )
         out.write(f"    '{serial}': '{escaped}',\n")
     out.write('}\n')
 

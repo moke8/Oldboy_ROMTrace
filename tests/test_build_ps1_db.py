@@ -39,6 +39,18 @@ metadata:
                         generated.index("'SLUS-00001'"))
         self.assertIn("Namco\\'s Game", generated)
 
+    def test_normalizes_names_written_to_database(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / 'ps1_game_db.py'
+            write_database(
+                {'SLUS-00001': 'Air Combat (USA) (Rev 1)'},
+                output,
+                'fixture.yaml',
+            )
+            generated = output.read_text(encoding='utf-8')
+
+        self.assertIn("'SLUS-00001': 'Air Combat'", generated)
+
 
 if __name__ == '__main__':
     unittest.main()

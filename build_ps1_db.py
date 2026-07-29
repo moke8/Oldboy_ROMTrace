@@ -15,6 +15,8 @@ import re
 import urllib.request
 from pathlib import Path
 
+from build_db_utils import clean_db_title
+
 
 SOURCE_URL = (
     'https://raw.githubusercontent.com/stenzek/duckstation/'
@@ -65,7 +67,9 @@ def write_database(serial_map, output_path, source_name):
         'PS1_GAME_DB = {',
     ]
     for serial, name in sorted(serial_map.items()):
-        escaped = name.replace('\\', '\\\\').replace("'", "\\'")
+        escaped = clean_db_title(name).replace('\\', '\\\\').replace(
+            "'", "\\'"
+        )
         lines.append(f"    '{serial}': '{escaped}',")
     lines.extend(['}', ''])
     Path(output_path).write_text('\n'.join(lines), encoding='utf-8')
