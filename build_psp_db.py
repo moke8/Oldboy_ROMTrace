@@ -25,6 +25,7 @@ LIBRETRO_SERIAL_URL = (
 )
 DEFAULT_OUTPUT = Path('game_psp_db.py')
 MIN_EXPECTED_ENTRIES = 3300
+MIN_EXPECTED_PSN_ENTRIES = 2000
 DISC_ID_PATTERN = re.compile(
     r'(?<![A-Z0-9])(U[CL][A-Z]{2})[ -]?(\d{5})(?!\d)',
     re.IGNORECASE,
@@ -35,6 +36,10 @@ QUOTED_FIELD_PATTERN = re.compile(r'^(name|comment)\s+"((?:\\.|[^"])*)"')
 METADATA_SERIAL_PATTERN = re.compile(
     r'\bserial\s+"([A-Z]{4})[- _]?(\d{5})"', re.IGNORECASE
 )
+KNOWN_PSN_TITLES = {
+    'NPJH50226': 'Ys - Felghana No Chikai',
+    'NPJH50473': 'Eiyuu Densetsu - Ao no Kiseki',
+}
 
 
 class _RedumpListingParser(HTMLParser):
@@ -172,7 +177,8 @@ def _extract_metadata_serial_map(content, title_field):
             current_serial = normalize_psp_id(''.join(serial_match.groups()))
 
         if line == ')':
-            if current_title and current_serial.startswith('NP'):
+            if (current_title and current_serial
+                    and current_serial.startswith('NP')):
                 serial_map.setdefault(
                     current_serial, clean_db_title(current_title)
                 )
@@ -205,6 +211,23 @@ def validate_serial_map(serial_map):
         raise ValueError(
             f'Redump PSP database requires at least {MIN_EXPECTED_ENTRIES} '
             f'entries; found {len(serial_map)}'
+        )
+
+
+def validate_combined_map(serial_map):
+    umd_count = sum(
+        disc_id.startswith(('UC', 'UL')) for disc_id in serial_map
+    )
+    psn_count = sum(disc_id.startswith('NP') for disc_id in serial_map)
+    if umd_count < MIN_EXPECTED_ENTRIES:
+        raise ValueError(
+            f'PSP database requires at least {MIN_EXPECTED_ENTRIES} UMD '
+            f'entries; found {umd_count}'
+        )
+    if psn_count < MIN_EXPECTED_PSN_ENTRIES:
+        raise ValueError(
+            f'PSP database requires at least {MIN_EXPECTED_PSN_ENTRIES} PSN '
+            f'entries; found {psn_count}'
         )
 
 
@@ -248,10 +271,35 @@ def main():
     args = parser.parse_args()
 
     pages = download_listing_pages()
-    serial_map = extract_serial_map(pages)
-    validate_serial_map(serial_map)
-    write_database(serial_map, args.output, SOURCE_URL)
-    print(f'Extracted {len(serial_map)} PSP DISC_ID mappings')
+    umd_map = extract_serial_map(pages)
+    validate_serial_map(umd_map)
+
+    nps_map = extract_nps_serial_map(download_page(NPS_SOURCE_URL))
+    no_intro_map = extract_no_intro_serial_map(
+        download_page(NOINTRO_SOURCE_URL)
+    )
+    libretro_map = extract_libretro_serial_map(
+        download_page(LIBRETRO_SERIAL_URL)
+    )
+    serial_map = merge_serial_maps(
+        umd_map,
+        nps_map,
+        no_intro_map,
+        libretro_map,
+        KNOWN_PSN_TITLES,
+    )
+    validate_combined_map(serial_map)
+    sources = ', '.join((
+        SOURCE_URL,
+        NPS_SOURCE_URL,
+        NOINTRO_SOURCE_URL,
+        LIBRETRO_SERIAL_URL,
+    ))
+    write_database(serial_map, args.output, sources)
+    print(
+        f'Extracted {len(umd_map)} UMD and '
+        f'{sum(key.startswith("NP") for key in serial_map)} PSN mappings'
+    )
     print(f'Wrote {args.output}')
 
 

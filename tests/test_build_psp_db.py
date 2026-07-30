@@ -85,6 +85,14 @@ class PSPDatabaseBuilderTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'at least 3300'):
             build_psp_db.validate_serial_map({'ULJM05101': 'Valkyrie'})
 
+    def test_rejects_combined_database_without_enough_psn_ids(self):
+        umd_map = {
+            f'ULJM{index:05d}': f'UMD {index}'
+            for index in range(3300)
+        }
+        with self.assertRaisesRegex(ValueError, 'at least 2000 PSN'):
+            build_psp_db.validate_combined_map(umd_map)
+
     def test_extracts_nopaystation_psn_ids_and_native_titles(self):
         content = (
             'Title ID\tRegion\tName\tPKG direct link\n'
@@ -103,6 +111,10 @@ class PSPDatabaseBuilderTests(unittest.TestCase):
 
     def test_extracts_no_intro_psn_title_and_removes_release_suffixes(self):
         content = '''
+game (
+    name "Entry without a serial (Japan) (PSN)"
+    description "Entry without a serial (Japan) (PSN)"
+)
 game (
     name "Eiyuu Densetsu - Ao no Kiseki (Japan) (PSP) (PSN)"
     description "Eiyuu Densetsu - Ao no Kiseki (Japan) (PSP) (PSN)"
@@ -143,10 +155,18 @@ class PSPGeneratedDatabaseTests(unittest.TestCase):
     def test_generated_database_has_expected_psp_ids(self):
         from game_psp_db import PSP_GAME_DB
 
-        self.assertGreaterEqual(len(PSP_GAME_DB), 3300)
+        self.assertGreaterEqual(len(PSP_GAME_DB), 5300)
         self.assertIn('ULJM05101', PSP_GAME_DB)
+        self.assertEqual(
+            'Ys - Felghana No Chikai',
+            PSP_GAME_DB['NPJH50226'],
+        )
+        self.assertEqual(
+            'Eiyuu Densetsu - Ao no Kiseki',
+            PSP_GAME_DB['NPJH50473'],
+        )
         self.assertTrue(all(
-            re.fullmatch(r'U[CL][A-Z]{2}\d{5}', disc_id)
+            re.fullmatch(r'(?:U[CL]|NP)[A-Z]{2}\d{5}', disc_id)
             for disc_id in PSP_GAME_DB
         ))
 
