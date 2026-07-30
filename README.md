@@ -36,7 +36,7 @@
 | Nintendo DS | `.nds` | ROM Header Game Code → No-Intro 英文名，多语言横幅标题与图标解码 |
 | Nintendo 3DS | `.3ds` `.cia` | SMDH 标题解析 |
 | PlayStation 1 | `.chd` `.pbp` `.bin/.cue` | SYSTEM.CNF 序列号 → 内置字典标准英文名，未知序列号保留原始标题 |
-| PlayStation Portable | `.iso` `.cso` `.pbp` | PARAM.SFO 解析（支持 CSO 解压） |
+| PlayStation Portable | `.iso` `.cso` `.pbp` | PARAM.SFO Game ID → Redump UMD 与 NPS/No-Intro PSN 对照库；未命中的 PBP/ISO 按条件回退 PS1 解析 |
 | Nintendo GameCube | `.iso` `.gcm` | DOL/FST 头部解析 |
 | Nintendo Wii | `.iso` `.wbfs` | 光盘头部标题 |
 | Sega Dreamcast | `.chd` `.gdi` `.cdi` | IP.BIN 元数据 |
@@ -103,7 +103,7 @@ translate_deepseek.py    # OpenAI 兼容 AI 翻译函数
 platform_gba.py          # GBA 平台（Game Code 查表）
 platform_nds.py          # NDS 平台（多语言标题 + 图标解码）
 platform_3ds.py          # 3DS 平台
-platform_psp.py          # PSP 平台（PARAM.SFO + CSO）
+platform_psp.py          # PSP 平台（PARAM.SFO + UMD/PSN 查表 + PS1 回退）
 platform_ps1.py          # PS1 平台（CHD/PBP/BIN）
 platform_ngc.py          # GameCube 平台
 platform_wii.py          # Wii 平台
@@ -116,8 +116,8 @@ game_nds_db.py           # NDS Game Code → 游戏名映射表（自动生成�
 build_nds_db.py          # 从 No-Intro DAT 生成 NDS 映射表
 game_ps1_db.py           # PS1 序列号 → 标准英文名映射表（自动生成）
 build_ps1_db.py          # 从 DuckStation 数据库生成 PS1 映射表
-game_psp_db.py           # PSP DISC_ID → 标准英文名映射表（自动生成）
-build_psp_db.py          # 从 Redump 列表生成 PSP 映射表
+game_psp_db.py           # PSP UMD/PSN Game ID → 标准标题映射表（自动生成）
+build_psp_db.py          # 从 Redump、NPS 与 No-Intro 数据生成 PSP 映射表
 
 datasource_thegamesdb.py # TheGamesDB 数据源
 datasource_igdb.py       # IGDB (Twitch) 数据源
