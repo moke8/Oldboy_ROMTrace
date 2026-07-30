@@ -85,6 +85,59 @@ class PSPDatabaseBuilderTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'at least 3300'):
             build_psp_db.validate_serial_map({'ULJM05101': 'Valkyrie'})
 
+    def test_extracts_nopaystation_psn_ids_and_native_titles(self):
+        content = (
+            'Title ID\tRegion\tName\tPKG direct link\n'
+            'NPJH50226\tJP\tイース -フェルガナの誓い- スーパープライス\t'
+            'https://example.invalid/game.pkg\n'
+            'INVALID\tJP\tIgnored\thttps://example.invalid/ignored.pkg\n'
+        )
+
+        self.assertEqual(
+            {
+                'NPJH50226':
+                    'イース -フェルガナの誓い- スーパープライス',
+            },
+            build_psp_db.extract_nps_serial_map(content),
+        )
+
+    def test_extracts_no_intro_psn_title_and_removes_release_suffixes(self):
+        content = '''
+game (
+    name "Eiyuu Densetsu - Ao no Kiseki (Japan) (PSP) (PSN)"
+    description "Eiyuu Densetsu - Ao no Kiseki (Japan) (PSP) (PSN)"
+    serial "NPJH-50473"
+)
+'''
+
+        self.assertEqual(
+            {'NPJH50473': 'Eiyuu Densetsu - Ao no Kiseki'},
+            build_psp_db.extract_no_intro_serial_map(content),
+        )
+
+    def test_extracts_libretro_comment_and_serial_pairs(self):
+        content = '''
+game (
+    comment "Eiyuu Densetsu - Ao no Kiseki (Japan) (v1.01)"
+    rom ( serial "NPJH-50473" )
+)
+'''
+
+        self.assertEqual(
+            {'NPJH50473': 'Eiyuu Densetsu - Ao no Kiseki'},
+            build_psp_db.extract_libretro_serial_map(content),
+        )
+
+    def test_title_metadata_overrides_nps_but_preserves_umd(self):
+        merged = build_psp_db.merge_serial_maps(
+            {'ULJM05101': 'Valkyrie Profile: Lenneth'},
+            {'NPJH50226': 'イース'},
+            {'NPJH50226': 'Ys - Felghana No Chikai'},
+        )
+
+        self.assertEqual('Valkyrie Profile: Lenneth', merged['ULJM05101'])
+        self.assertEqual('Ys - Felghana No Chikai', merged['NPJH50226'])
+
 
 class PSPGeneratedDatabaseTests(unittest.TestCase):
     def test_generated_database_has_expected_psp_ids(self):

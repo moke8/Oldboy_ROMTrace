@@ -2,7 +2,9 @@
 """Generate a PSP DISC_ID to English title mapping from Redump."""
 
 import argparse
+import csv
 from html.parser import HTMLParser
+import io
 from pathlib import Path
 import re
 from urllib.parse import urljoin
@@ -12,6 +14,15 @@ from build_db_utils import clean_db_title
 
 
 SOURCE_URL = 'http://redump.org/discs/system/psp/'
+NPS_SOURCE_URL = 'https://nopaystation.com/tsv/PSP_GAMES.tsv'
+NOINTRO_SOURCE_URL = (
+    'https://raw.githubusercontent.com/libretro/libretro-database/master/'
+    'metadat/no-intro/Sony%20-%20PlayStation%20Portable%20(PSN).dat'
+)
+LIBRETRO_SERIAL_URL = (
+    'https://raw.githubusercontent.com/libretro/libretro-database/master/'
+    'metadat/serial/Sony%20-%20PlayStation%20Portable.dat'
+)
 DEFAULT_OUTPUT = Path('game_psp_db.py')
 MIN_EXPECTED_ENTRIES = 3300
 DISC_ID_PATTERN = re.compile(
@@ -19,6 +30,11 @@ DISC_ID_PATTERN = re.compile(
     re.IGNORECASE,
 )
 PAGE_PATTERN = re.compile(r'[?&]page=(\d+)')
+PSP_ID_PATTERN = re.compile(r'(?:U[CL]|NP)[A-Z]{2}\d{5}')
+QUOTED_FIELD_PATTERN = re.compile(r'^(name|comment)\s+"((?:\\.|[^"])*)"')
+METADATA_SERIAL_PATTERN = re.compile(
+    r'\bserial\s+"([A-Z]{4})[- _]?(\d{5})"', re.IGNORECASE
+)
 
 
 class _RedumpListingParser(HTMLParser):
@@ -105,6 +121,83 @@ def extract_serial_map(page_contents):
             if disc_id:
                 serial_map.setdefault(disc_id, clean_db_title(title))
     return serial_map
+
+
+def normalize_psp_id(value):
+    compact = re.sub(r'[^A-Z0-9]', '', (value or '').upper())
+    return compact if PSP_ID_PATTERN.fullmatch(compact) else ''
+
+
+def extract_nps_serial_map(content):
+    serial_map = {}
+    rows = csv.reader(io.StringIO(content), delimiter='\t')
+    next(rows, None)
+    for row in rows:
+        if len(row) < 3:
+            continue
+        disc_id = normalize_psp_id(row[0])
+        title = row[2].strip()
+        if disc_id.startswith('NP') and title:
+            serial_map.setdefault(disc_id, clean_db_title(title))
+    return serial_map
+
+
+def _unescape_metadata_title(value):
+    return value.replace(r'\"', '"').replace(r'\\', '\\')
+
+
+def _extract_metadata_serial_map(content, title_field):
+    serial_map = {}
+    current_title = None
+    current_serial = None
+    in_game = False
+
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if line == 'game (':
+            in_game = True
+            current_title = None
+            current_serial = None
+            continue
+        if not in_game:
+            continue
+
+        title_match = QUOTED_FIELD_PATTERN.match(line)
+        if (title_match and title_match.group(1) == title_field
+                and current_title is None):
+            current_title = _unescape_metadata_title(title_match.group(2))
+
+        serial_match = METADATA_SERIAL_PATTERN.search(line)
+        if serial_match and current_serial is None:
+            current_serial = normalize_psp_id(''.join(serial_match.groups()))
+
+        if line == ')':
+            if current_title and current_serial.startswith('NP'):
+                serial_map.setdefault(
+                    current_serial, clean_db_title(current_title)
+                )
+            in_game = False
+
+    return serial_map
+
+
+def extract_no_intro_serial_map(content):
+    return _extract_metadata_serial_map(content, 'name')
+
+
+def extract_libretro_serial_map(content):
+    return _extract_metadata_serial_map(content, 'comment')
+
+
+def merge_serial_maps(umd_map, psn_map, *title_maps):
+    merged = dict(umd_map)
+    merged.update(psn_map)
+    for title_map in title_maps:
+        for disc_id, title in title_map.items():
+            normalized = normalize_psp_id(disc_id)
+            if normalized.startswith('NP') and title:
+                merged[normalized] = clean_db_title(title)
+    return merged
 
 
 def validate_serial_map(serial_map):
