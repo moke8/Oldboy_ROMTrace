@@ -5,6 +5,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import platform_psp
+import platform_ps1
 from platform_psp import extract_psp_info
 
 
@@ -71,6 +72,64 @@ class PSPPlatformTests(unittest.TestCase):
 
         self.assertEqual('Unknown Localized Title', result['title_en'])
         self.assertEqual('ULJM99999', result['disc_id'])
+
+    def test_known_psn_id_uses_psp_database(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp) / 'game.pbp'
+            _write_pbp(game, 'Japanese Title', 'npjh-50226')
+            with patch.dict(
+                platform_psp.PSP_GAME_DB,
+                {'NPJH50226': 'Ys - Felghana No Chikai'},
+                clear=True,
+            ):
+                result = extract_psp_info(game, log=lambda _: None)
+
+        self.assertEqual('Ys - Felghana No Chikai', result['title_en'])
+        self.assertEqual('NPJH50226', result['disc_id'])
+
+    def test_known_ps1_pbp_falls_back_to_ps1_parser(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp) / 'game.pbp'
+            _write_pbp(game, 'Localized PS1 Title', 'SLUS01234')
+            with patch.dict(platform_psp.PSP_GAME_DB, {}, clear=True), \
+                    patch.dict(
+                        platform_ps1.PS1_GAME_DB,
+                        {'SLUS-01234': 'Mapped PS1 Title'},
+                        clear=True,
+                    ):
+                result = extract_psp_info(game, log=lambda _: None)
+
+        self.assertEqual('Mapped PS1 Title', result['title_en'])
+        self.assertEqual('SLUS-01234', result['disc_id'])
+
+    def test_failed_psp_iso_falls_back_to_ps1_parser(self):
+        expected = {
+            'title': 'PS1 Game',
+            'title_en': 'PS1 Game',
+            'disc_id': 'SLUS-01234',
+            'publisher': '',
+            'filename': 'game.iso',
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp) / 'game.iso'
+            game.write_bytes(b'not a PSP ISO')
+            with patch(
+                'platform_psp.extract_ps1_info', return_value=expected
+            ) as ps1_extract:
+                result = extract_psp_info(game, log=lambda _: None)
+
+        self.assertEqual(expected, result)
+        ps1_extract.assert_called_once()
+
+    def test_failed_cso_does_not_fall_back_to_ps1_parser(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp) / 'game.cso'
+            game.write_bytes(b'not a CSO')
+            with patch('platform_psp.extract_ps1_info') as ps1_extract:
+                result = extract_psp_info(game, log=lambda _: None)
+
+        self.assertIsNone(result)
+        ps1_extract.assert_not_called()
 
 
 if __name__ == '__main__':

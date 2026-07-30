@@ -6,7 +6,9 @@ import struct
 import zlib
 from pathlib import Path
 
+from game_ps1_db import PS1_GAME_DB
 from game_psp_db import PSP_GAME_DB
+from platform_ps1 import extract_ps1_info
 
 PLATFORM_TITLE = "PlayStation Portable"
 CONFIG_FILENAME = "psp_config.json"
@@ -211,13 +213,20 @@ def _extract_from_pbp(pbp_path, lang_code, log):
 
 def _normalize_disc_id(disc_id):
     compact = re.sub(r'[^A-Z0-9]', '', (disc_id or '').upper())
-    if re.fullmatch(r'U[CL][A-Z]{2}\d{5}', compact):
+    if re.fullmatch(r'(?:U[CL]|NP)[A-Z]{2}\d{5}', compact):
         return compact
     return disc_id or ''
 
 
 def _resolve_title_en(disc_id, fallback_title):
     return PSP_GAME_DB.get(_normalize_disc_id(disc_id)) or fallback_title
+
+
+def _extract_known_ps1_info(path, lang_code, log):
+    info = extract_ps1_info(path, lang_code, log)
+    if info and info.get('disc_id') in PS1_GAME_DB:
+        return info
+    return None
 
 
 def extract_psp_info(psp_path, lang_code='en', log=print):
@@ -255,11 +264,15 @@ def extract_psp_info(psp_path, lang_code='en', log=print):
     else:
         return None
 
+    if not sfo_data and ext == '.iso':
+        return extract_ps1_info(psp_path, lang_code, log)
     if not sfo_data:
         log("[游戏解析] PSP 中未找到 PARAM.SFO")
         return None
 
     sfo = parse_param_sfo(sfo_data)
+    if not sfo and ext == '.iso':
+        return extract_ps1_info(psp_path, lang_code, log)
     if not sfo:
         log("[游戏解析] PSP PARAM.SFO 解析失败")
         return None
@@ -267,6 +280,11 @@ def extract_psp_info(psp_path, lang_code='en', log=print):
     title = sfo.get('TITLE', '') or Path(psp_path).stem
     disc_id = sfo.get('DISC_ID', '') or ''
     normalized_disc_id = _normalize_disc_id(disc_id)
+
+    if ext == '.pbp' and normalized_disc_id not in PSP_GAME_DB:
+        ps1_info = _extract_known_ps1_info(psp_path, lang_code, log)
+        if ps1_info:
+            return ps1_info
 
     info = {
         'title': title,
