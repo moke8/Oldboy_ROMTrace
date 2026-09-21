@@ -1,7 +1,13 @@
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from types import MethodType
 from unittest.mock import Mock, patch
+
+os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+
+from PySide6.QtWidgets import QApplication, QPushButton, QWidget
 
 from platform_base import BasePlatformTab, load_showcase_games
 
@@ -100,6 +106,144 @@ class DetailSaveIntegrationTests(unittest.TestCase):
             {'pegasus': True, 'gamelist': False, 'imgs': True},
         )
         tab._load_showcase.assert_called_once_with('/roms')
+
+
+class SelectedScrapeTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+
+    def _menu_with_selection(self):
+        calls = []
+        widget = QWidget()
+        card_a = Mock(game={'file': 'a.nds', 'title': 'Alpha'})
+        card_b = Mock(game={'file': 'b.nds', 'title': 'Beta'})
+        widget._worker = None
+        widget._selected_cards = {card_a, card_b}
+        widget._scrape_games = (
+            lambda filenames, scrape_mode: calls.append((filenames, scrape_mode)))
+        widget._build_game_context_menu = MethodType(
+            BasePlatformTab._build_game_context_menu, widget)
+        return widget._build_game_context_menu(card_a), calls
+
+    def test_scrape_selected_action_passes_filenames_not_checked_flag(self):
+        menu, calls = self._menu_with_selection()
+        action = next(
+            item for item in menu.actions()
+            if '补全选中游戏' in item.text())
+        action.trigger()
+
+        self.assertEqual(1, len(calls))
+        filenames, scrape_mode = calls[0]
+        self.assertEqual('complement', scrape_mode)
+        self.assertCountEqual(['a.nds', 'b.nds'], filenames)
+
+    def test_refresh_selected_action_passes_filenames_not_checked_flag(self):
+        menu, calls = self._menu_with_selection()
+        action = next(
+            item for item in menu.actions()
+            if '刷新选中游戏' in item.text())
+        action.trigger()
+
+        self.assertEqual(1, len(calls))
+        filenames, scrape_mode = calls[0]
+        self.assertEqual('refresh', scrape_mode)
+        self.assertCountEqual(['a.nds', 'b.nds'], filenames)
+
+
+class DirectoryPersistTests(unittest.TestCase):
+    def test_pick_dir_saves_platform_directory(self):
+        tab = Mock()
+        tab.dir_input = Mock()
+        tab._persist_config = MethodType(
+            BasePlatformTab._persist_config, tab)
+        with patch(
+            'platform_base.QFileDialog.getExistingDirectory',
+            return_value=r'E:\roms\3ds',
+        ):
+            BasePlatformTab._pick_dir(tab)
+
+        tab.dir_input.setText.assert_called_once_with(r'E:\roms\3ds')
+        tab._on_dir_changed.assert_called_once_with(r'E:\roms\3ds')
+        tab.window.return_value.save_config.assert_called_once()
+
+    def test_cancelled_pick_dir_does_not_save(self):
+        tab = Mock()
+        tab.dir_input = Mock()
+        with patch(
+            'platform_base.QFileDialog.getExistingDirectory',
+            return_value='',
+        ):
+            BasePlatformTab._pick_dir(tab)
+
+        tab.dir_input.setText.assert_not_called()
+        tab.window.return_value.save_config.assert_not_called()
+
+
+class ManualSearchDialogTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.app = QApplication.instance() or QApplication([])
+
+    def _dialog(self, title='Mario Kart', settings=None):
+        widget = QWidget()
+        logs = []
+        widget._log = logs.append
+        widget.window = lambda: Mock(get_global_settings=lambda: settings or {
+            'translate_provider': 'google',
+            'google_lang': 'zh-CN',
+            'translate_configs': {},
+        })
+        widget._translate_search_keyword = MethodType(
+            BasePlatformTab._translate_search_keyword, widget)
+        widget._build_manual_search_dialog = MethodType(
+            BasePlatformTab._build_manual_search_dialog, widget)
+        dialog, line_edit = widget._build_manual_search_dialog(
+            title, 'mario.nds')
+        return widget, dialog, line_edit, logs
+
+    def test_manual_search_uses_literal_extract_and_translate_buttons(self):
+        _widget, dialog, line_edit, _logs = self._dialog()
+        self.addCleanup(dialog.close)
+
+        extract = dialog.findChild(QPushButton, 'extractRomTitleButton')
+        translate_btn = dialog.findChild(QPushButton, 'translateSearchButton')
+        self.assertIsNotNone(extract)
+        self.assertIsNotNone(translate_btn)
+        self.assertEqual('提取', extract.text())
+        self.assertEqual('翻译', translate_btn.text())
+        self.assertEqual('Mario Kart', line_edit.text())
+
+    def test_translate_button_replaces_keyword_using_scrape_settings(self):
+        _widget, dialog, line_edit, logs = self._dialog()
+        self.addCleanup(dialog.close)
+        translate_btn = dialog.findChild(QPushButton, 'translateSearchButton')
+
+        with patch(
+            'translate_base.translate', return_value='马里奥卡丁车',
+        ) as mock_translate:
+            translate_btn.click()
+
+        mock_translate.assert_called_once_with(
+            'Mario Kart', 'zh-CN', 'google', {}, log=_widget._log)
+        self.assertEqual('马里奥卡丁车', line_edit.text())
+        self.assertTrue(any('马里奥卡丁车' in msg for msg in logs))
+
+    def test_translate_button_keeps_text_when_translation_is_disabled(self):
+        _widget, dialog, line_edit, logs = self._dialog(settings={
+            'translate_provider': 'off',
+            'google_lang': 'zh-CN',
+            'translate_configs': {},
+        })
+        self.addCleanup(dialog.close)
+        translate_btn = dialog.findChild(QPushButton, 'translateSearchButton')
+
+        with patch('translate_base.translate') as mock_translate:
+            translate_btn.click()
+
+        mock_translate.assert_not_called()
+        self.assertEqual('Mario Kart', line_edit.text())
+        self.assertTrue(any('未启用翻译' in msg for msg in logs))
 
 
 if __name__ == '__main__':

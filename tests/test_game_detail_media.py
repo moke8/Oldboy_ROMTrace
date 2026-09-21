@@ -155,6 +155,33 @@ class GameDetailMediaTests(unittest.TestCase):
         self.assertFalse(remove.icon().isNull())
         dialog.close()
 
+    def test_switching_to_video_tab_without_video_does_not_crash(self):
+        dialog = GameDetailDialog({'title': 'Game'})
+        tabs = dialog.findChild(QTabWidget, 'mediaTabs')
+
+        tabs.setCurrentIndex(2)
+
+        self.assertEqual('视频', tabs.tabText(tabs.currentIndex()))
+        self.assertIsNone(dialog._media_player)
+        dialog.close()
+
+    def test_removing_video_then_switching_to_video_tab_does_not_crash(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            video = Path(temp_dir) / 'video.mp4'
+            video.write_bytes(b'data')
+            dialog = GameDetailDialog({
+                'title': 'Game',
+                'video': str(video),
+            })
+            dialog.findChild(QToolButton, 'removeVideoButton').click()
+            self.assertIsNone(dialog._video_widget)
+            tabs = dialog.findChild(QTabWidget, 'mediaTabs')
+            tabs.setCurrentIndex(2)
+
+            self.assertEqual('视频', tabs.tabText(tabs.currentIndex()))
+            self.assertIsNone(dialog._media_player)
+            dialog.close()
+
 
 if __name__ == '__main__':
     unittest.main()

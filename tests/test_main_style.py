@@ -38,6 +38,15 @@ class MainStyleTests(unittest.TestCase):
         self.assertFalse(window.windowIcon().pixmap(64, 64).isNull())
         window.close()
 
+    def test_window_saves_config_on_close(self):
+        from unittest.mock import patch
+
+        window = MainWindow()
+        self.addCleanup(window.close)
+        with patch.object(window, 'save_config') as save:
+            window.close()
+            save.assert_called_once()
+
 
 if __name__ == '__main__':
     unittest.main()

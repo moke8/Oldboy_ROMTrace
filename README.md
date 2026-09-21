@@ -106,7 +106,7 @@ platform_3ds.py          # 3DS 平台
 platform_psp.py          # PSP 平台（PARAM.SFO + UMD/PSN 查表 + PS1 回退）
 platform_ps1.py          # PS1 平台（CHD/PBP/BIN）
 platform_ngc.py          # GameCube 平台
-platform_wii.py          # Wii 平台
+platform_wii.py          # Wii 平台（Disc ID 查表）
 platform_dc.py           # Dreamcast 平台
 platform_switch.py       # Switch 平台（XCI/NCA 解密）
 
@@ -118,6 +118,8 @@ game_ps1_db.py           # PS1 序列号 → 标准英文名映射表（自动�
 build_ps1_db.py          # 从 DuckStation 数据库生成 PS1 映射表
 game_psp_db.py           # PSP UMD/PSN Game ID → 标准标题映射表（自动生成）
 build_psp_db.py          # 从 Redump、NPS 与 No-Intro 数据生成 PSP 映射表
+game_wii_db.py           # Wii Disc ID → 标准英文名映射表（自动生成）
+build_wii_db.py          # 从 GameTDB / Dolphin wiitdb 生成 Wii 映射表
 
 datasource_thegamesdb.py # TheGamesDB 数据源
 datasource_igdb.py       # IGDB (Twitch) 数据源

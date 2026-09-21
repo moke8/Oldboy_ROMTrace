@@ -285,7 +285,7 @@ try:
     from PySide6.QtWidgets import (
         QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton,
         QCheckBox, QTextEdit, QScrollArea, QFrame, QFileDialog, QMessageBox,
-        QMenu, QInputDialog, QDialog, QDialogButtonBox, QToolButton,
+        QMenu, QInputDialog, QDialog, QDialogButtonBox,
     )
     from PySide6.QtCore import Qt
     from PySide6.QtGui import QCursor
@@ -322,6 +322,7 @@ try:
             r1.addWidget(lbl1)
             self.dir_input = QLineEdit()
             self.dir_input.setPlaceholderText(self.dir_placeholder)
+            self.dir_input.editingFinished.connect(self._persist_config)
             r1.addWidget(self.dir_input, 1)
             db = QPushButton("浏览")
             db.setFixedWidth(60)
@@ -390,6 +391,13 @@ try:
             if path:
                 self.dir_input.setText(path)
                 self._on_dir_changed(path)
+                self._persist_config()
+
+        def _persist_config(self):
+            mw = self.window()
+            save = getattr(mw, 'save_config', None)
+            if callable(save):
+                save()
 
         def _on_dir_changed(self, directory):
             base = Path(directory)
@@ -456,6 +464,9 @@ try:
         def _on_card_context_menu(self, card):
             if self._worker and self._worker.isRunning():
                 return
+            self._build_game_context_menu(card).exec(QCursor.pos())
+
+        def _build_game_context_menu(self, card):
             menu = QMenu(self)
             menu.setStyleSheet(
                 'QMenu { background: #161b22; border: 1px solid #30363d; padding: 4px; }'
@@ -480,13 +491,15 @@ try:
             if count > 0:
                 files = [c.game.get('file', '') for c in self._selected_cards]
                 menu.addAction(f"补全选中游戏 ({count}款)").triggered.connect(
-                    lambda f=files: self._scrape_games(f, 'complement'))
+                    lambda _checked=False, f=files:
+                    self._scrape_games(f, 'complement'))
                 menu.addAction(f"刷新选中游戏 ({count}款)").triggered.connect(
-                    lambda f=files: self._scrape_games(f, 'refresh'))
+                    lambda _checked=False, f=files:
+                    self._scrape_games(f, 'refresh'))
             else:
                 act_sel = menu.addAction("补全/刷新选中游戏 (未选择)")
                 act_sel.setEnabled(False)
-            menu.exec(QCursor.pos())
+            return menu
 
         def _manual_search(self, card):
             if self._worker and self._worker.isRunning():
@@ -494,23 +507,39 @@ try:
                 return
             current_title = card.game.get('title', '')
             file_name = card.game.get('file', '')
+            dlg, line_edit = self._build_manual_search_dialog(
+                current_title, file_name)
+            if dlg.exec() != QDialog.Accepted:
+                return
+            text = line_edit.text().strip()
+            if not text:
+                return
+            self._scrape_games([file_name], 'refresh',
+                               override_search_name=text)
 
+        def _build_manual_search_dialog(self, current_title, file_name):
             dlg = QDialog(self)
             dlg.setWindowTitle("手动搜索")
-            dlg.setMinimumWidth(400)
+            dlg.setMinimumWidth(460)
             layout = QVBoxLayout(dlg)
             layout.addWidget(QLabel("输入搜索关键词:"))
 
             row = QHBoxLayout()
             line_edit = QLineEdit(current_title)
+            line_edit.setObjectName('manualSearchInput')
             row.addWidget(line_edit)
 
-            btn_extract = QToolButton()
-            btn_extract.setText("📦")
-            btn_extract.setToolTip("从ROM中获取英文游戏名")
-            btn_extract.setStyleSheet(
-                'QToolButton { font-size: 16px; padding: 2px 6px; }'
-                'QToolButton:hover { background: #264f78; border-radius: 4px; }')
+            btn_style = (
+                'QPushButton { padding: 4px 10px; }'
+                'QPushButton:hover { background: #264f78; }')
+            btn_extract = QPushButton("提取")
+            btn_extract.setObjectName('extractRomTitleButton')
+            btn_extract.setToolTip("从 ROM 中读取英文游戏名")
+            btn_extract.setStyleSheet(btn_style)
+            btn_translate = QPushButton("翻译")
+            btn_translate.setObjectName('translateSearchButton')
+            btn_translate.setToolTip("按刮削设置翻译当前搜索关键词")
+            btn_translate.setStyleSheet(btn_style)
 
             def _fill_rom_title():
                 game_dir = self.dir_input.text().strip()
@@ -552,8 +581,14 @@ try:
                         import shutil
                         shutil.rmtree(temp_dir, ignore_errors=True)
 
+            def _translate_keyword():
+                line_edit.setText(
+                    self._translate_search_keyword(line_edit.text()))
+
             btn_extract.clicked.connect(_fill_rom_title)
+            btn_translate.clicked.connect(_translate_keyword)
             row.addWidget(btn_extract)
+            row.addWidget(btn_translate)
             layout.addLayout(row)
 
             buttons = QDialogButtonBox(
@@ -561,14 +596,29 @@ try:
             buttons.accepted.connect(dlg.accept)
             buttons.rejected.connect(dlg.reject)
             layout.addWidget(buttons)
+            return dlg, line_edit
 
-            if dlg.exec() != QDialog.Accepted:
-                return
-            text = line_edit.text().strip()
-            if not text:
-                return
-            self._scrape_games([file_name], 'refresh',
-                               override_search_name=text)
+        def _translate_search_keyword(self, text):
+            keyword = (text or '').strip()
+            if not keyword:
+                self._log("[翻译] 搜索关键词为空")
+                return text or ''
+            mw = self.window()
+            getter = getattr(mw, 'get_global_settings', None)
+            settings = getter() if callable(getter) else {}
+            provider = settings.get('translate_provider', 'off')
+            if provider == 'off':
+                self._log("[翻译] 当前未启用翻译，请在刮削设置中选择翻译方式")
+                return keyword
+            target = settings.get('google_lang', 'zh-CN')
+            from translate_base import translate
+            result = translate(
+                keyword, target, provider,
+                settings.get('translate_configs', {}), log=self._log)
+            if result and result != keyword:
+                self._log(f"[翻译] {keyword} -> {result}")
+                return result
+            return result or keyword
 
         def _scrape_games(self, filenames, scrape_mode='refresh',
                           override_search_name=''):
@@ -752,6 +802,7 @@ def _load_platforms():
             path, _ = QFileDialog.getOpenFileName(self, "选择 prod.keys")
             if path:
                 self.keys_input.setText(path)
+                self._persist_config()
 
         def _validate_before_extract(self):
             keys_path = self.keys_input.text().strip()

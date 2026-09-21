@@ -698,6 +698,8 @@ class GameDetailDialog(QDialog):
         self.setWindowTitle(game_data.get('title', '游戏详情'))
         self.setMinimumSize(880, 620)
         self._media_player = None
+        self._video_widget = None
+        self._video_status = None
         self._video_tab_index = -1
         self.setStyleSheet("""
             QLabel#fieldName  { color: #8b949e; font-size: 12px; }
@@ -813,6 +815,8 @@ class GameDetailDialog(QDialog):
             tabs.removeTab(0)
             widget.deleteLater()
         self._video_tab_index = -1
+        self._video_widget = None
+        self._video_status = None
         first_available = None
         media_defs = (
             ('封面', 'boxfront'),
@@ -827,13 +831,13 @@ class GameDetailDialog(QDialog):
                 first_available = index
             if kind == 'video' and available:
                 content = self._video_page(media)
+                self._video_tab_index = index
             elif kind != 'video' and available:
                 content = self._image_page(media)
             else:
                 content = self._media_placeholder(kind)
             tabs.addTab(
                 self._media_page(kind, content, available), label)
-        self._video_tab_index = 2
         tabs.setCurrentIndex(first_available or 0)
 
     def _media_placeholder(self, kind):
@@ -1036,7 +1040,7 @@ class GameDetailDialog(QDialog):
             self._video_status.setText('已暂停')
 
     def _media_tab_changed(self, index):
-        if index == self._video_tab_index:
+        if index == self._video_tab_index and self._video_widget is not None:
             self._play_video()
         elif self._media_player:
             self._media_player.pause()
@@ -1360,6 +1364,10 @@ class MainWindow(QMainWindow):
         for config_filename, tab in self._platform_tabs:
             pcfg = tab.save_config()
             save_json_config(_platform_config_path(config_filename), pcfg)
+
+    def closeEvent(self, event):
+        self.save_config()
+        super().closeEvent(event)
 
 
 if __name__ == '__main__':
